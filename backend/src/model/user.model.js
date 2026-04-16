@@ -32,9 +32,6 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: ""
         },
-        allSubscriptions: [{ // Array of all subscription ids (for history)
-            type: String,
-        }],
         isOwner: {
             type: Boolean,
             default: false,

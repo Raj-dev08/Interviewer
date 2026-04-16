@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { generateAccessToken } from "../lib/access.token.js";
 import User from "../model/user.model.js";
 import { redis } from "../lib/redis.js";
+import { verifyAndSyncSubscription } from "../lib/checkIsPaid.js";
 
 export const protectRoute = async (req, res, next) => {
     try {
@@ -47,12 +48,15 @@ export const protectRoute = async (req, res, next) => {
                 return res.status(401).json({ message: "Unauthorized session mismatch" });
             }
 
+            
+            const success = await verifyAndSyncSubscription(user._id);
+
             if(!success){
                 return res.status(400).json({ message: "Payment check failed try again later"})
             }
+
             req.user = user; // attach user to request object
             req.sessionId = decoded.sessionId;
-
             
 
             return next();
@@ -64,6 +68,8 @@ export const protectRoute = async (req, res, next) => {
             try {
                 const { token, user } = await generateAccessToken(sessionId);
                 res.setHeader("Authorization", `Bearer ${token}`);
+
+                const success = await verifyAndSyncSubscription(user._id);
 
                 if(!success){
                     return res.status(400).json({ message: "Payment check failed try again later"})

@@ -20,20 +20,29 @@ export const plans = pgTable("plans", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   price: integer("price").notNull(),
+  durationDays: integer("duration_days").notNull(),
 });
 
-export const subscriptions = pgTable("subscriptions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  planId: uuid("plan_id")
-    .notNull()
-    .references(() => plans.id, { onDelete: "cascade" }),
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date").notNull(),
-  status: subscriptionStatus("status").notNull(),
-});
+export const subscriptions = pgTable("subscriptions", 
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => plans.id, { onDelete: "cascade" }),
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+    status: subscriptionStatus("status").notNull(),
+  },
+(table) => [
+  uniqueIndex("user_plan_active_idx")
+    .on(table.userId)
+    .where(sql`${table.status} = 'active'`)
+]);
+//only one active subscription per user, but they can have multiple pending or canceled subscriptions
 
-export const payments = pgTable("payments", 
+export const payments = pgTable(
+  "payments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     subscriptionId: uuid("subscription_id")
@@ -44,11 +53,11 @@ export const payments = pgTable("payments",
     forYear: integer("for_year").notNull(),
     status: paymentStatus("status").notNull(),
   },
-  (table) => ({
-    subscriptionMonthYearIdx: uniqueIndex("payment_subscription_month_year_idx")
+  (table) => [
+    uniqueIndex("payment_subscription_month_year_idx")
       .on(table.subscriptionId, table.forMonth, table.forYear)
       .where(sql`${table.status} = 'succeeded'`)
-  })
+  ]
 );
 
 

@@ -9,7 +9,7 @@ import { protectRoute } from "./middleware/auth.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 
 import authRoutes from "./routes/auth.routes.js"
-
+import paymentRoutes from "./routes/payment.routes.js"
 
 
 
@@ -39,6 +39,7 @@ app.use(
 
 
 app.use("/api/auth", authRoutes);
+app.use("/api/plans", protectRoute, paymentRoutes);
 
 app.get("/api/health", (req, res) => {
   return res.status(200).json({ message: "OK" })
