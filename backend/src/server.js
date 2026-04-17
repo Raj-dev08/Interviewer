@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/error.middleware.js";
 
 import authRoutes from "./routes/auth.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
+import dsaRoutes from "./routes/dsa.routes.js"
 
 
 
@@ -40,6 +41,7 @@ app.use(
 
 app.use("/api/auth", authRoutes);
 app.use("/api/plans", protectRoute, paymentRoutes);
+app.use("/api/dsa", dsaRoutes);
 
 app.get("/api/health", (req, res) => {
   return res.status(200).json({ message: "OK" })
