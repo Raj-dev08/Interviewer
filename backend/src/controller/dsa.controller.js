@@ -18,7 +18,6 @@ export const LANGUAGE_MAP = {
   php: 68
 };
 
-//TODO : add the custom in the add testcases
 export const createDSAQuestion = async (req, res, next) => {
     try {
         const { user } = req;
@@ -360,8 +359,17 @@ export const addTestCases = async (req, res, next) => {
             return res.status(400).json({ message: "Please provide input and output for all test cases." });
         }
 
+        const safeParse = (v) => {
+            try {
+                return typeof v === "string" ? JSON.parse(v) : v;
+            } catch {
+                return v;
+            }
+        };
+
+
         const batchedInput = JSON.stringify(
-            testCases.map(tc => JSON.parse(tc.input))
+            testCases.map(tc => safeParse(tc.input))
         );
 
         const response = await axios.post(
@@ -389,6 +397,84 @@ export const addTestCases = async (req, res, next) => {
         if (response.data.status.id !== 3) {
             return res.status(400).json({ message: "One or more test cases did not pass validation. Please check your test cases and try again.", ans: response.data });
         }
+
+        let validationResult = true;
+
+        if(question.validationType === "custom"){
+            const output = (response.data.stdout || "")            
+                .split("\n")
+                .map(o => o.trim())
+                .filter(Boolean);
+
+            const validationInput = {
+                testCases: testCases.map((tc, i) => ({
+                    input: safeParse(tc.input),
+                    expected: safeParse(tc.output),
+                    actual: output[i]
+                }))
+            };
+
+            const validatorRes = await axios.post(
+                process.env.RAPID_URL,
+                {
+                    source_code: question.validationCode.code,
+                    language_id: LANGUAGE_MAP[question.validationCode.language],
+                    stdin: JSON.stringify(validationInput),
+                    cpu_time_limit: question.maxTime / 1000,
+                    memory_limit: question.maxMemory * 1024
+                },
+                {
+                    headers: {
+                        "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+                        "x-rapidapi-host": "judge029.p.rapidapi.com",
+                        "Content-Type": "application/json"
+                    }
+                }
+            );
+
+            if (!validatorRes?.data) {
+                return res.status(500).json({ message: "Failed to validate test cases with custom validator." });
+            }
+
+            if (validatorRes.data.status.id !== 3) {
+                return res.status(400).json({
+                    message: "validationCode failed",
+                    ans: validatorRes.data
+                });
+            }
+
+            const parsed = JSON.parse(validatorRes.data.stdout || "{}");
+            validationResult = parsed.allPassed === true;
+
+            if (!validationResult) {
+                return res.status(400).json({
+                    message: "Custom validation failed",
+                    debug: validatorRes.data
+                });
+            }
+        }
+
+        if (question.validationType === "exact") {
+            const clean = (s) => (s || "").replace(/\s+/g, "");
+
+            const outputs = (response.data.stdout || "")
+                .split("\n")
+                .map(o => clean(o))
+                .filter(Boolean);
+
+            const expectedOutputs = testCases.map(tc => clean(tc.output));
+
+            if (
+                outputs.length !== expectedOutputs.length ||
+                !outputs.every((o, i) => o === expectedOutputs[i])
+            ) {
+                return res.status(400).json({
+                    message: "Outputs do not match expected results.",
+                    ans: response.data
+                });
+            }
+        }
+
 
         await dsa.findOneAndUpdate(
             { _id: id },
