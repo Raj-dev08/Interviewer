@@ -7,12 +7,17 @@ import cors from "cors"
 import { connectDB } from "./lib/db.js";
 import { protectRoute } from "./middleware/auth.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
+import { initSocket } from "./lib/socket.js";
+
 
 import authRoutes from "./routes/auth.routes.js"
 import paymentRoutes from "./routes/payment.routes.js"
 import dsaRoutes from "./routes/dsa.routes.js"
 import sysdesRoutes from "./routes/sysdes.routes.js"
 import caseRoutes from "./routes/case.routes.js"
+import interviewRoutes from "./routes/interview.routes.js"
+import notificationRoutes from "./routes/notification.routes.js"
+
 
 
 
@@ -45,6 +50,8 @@ app.use("/api/plans", protectRoute, paymentRoutes);
 app.use("/api/dsa", dsaRoutes);
 app.use("/api/sysdes", protectRoute, sysdesRoutes);
 app.use("/api/case", protectRoute, caseRoutes);
+app.use("/api/interview", protectRoute, interviewRoutes);
+app.use("/api/notification",protectRoute,notificationRoutes)
 
 
 
@@ -68,5 +75,6 @@ app.use(errorHandler)
 
 server.listen(PORT, "0.0.0.0", async () => {
   console.log("server is running on PORT:" + PORT);
+  await initSocket(server);
   await connectDB();
 });

@@ -17,6 +17,7 @@ export const createSystemDesignQuestion = async (req, res, next) => {
             question, 
             description, 
             constraints, 
+            difficulty, 
             duration, 
             topics, 
             companyTags, 
@@ -28,8 +29,12 @@ export const createSystemDesignQuestion = async (req, res, next) => {
         } = req.body;
 
 
-        if (!question || !description || !constraints || !duration || !correctAnswerFlow || correctAnswerFlow.length === 0 || !evaluation || evaluation.length === 0) {
+        if (!question || !description || !constraints || !difficulty || !duration || !correctAnswerFlow || correctAnswerFlow.length === 0 || !evaluation || evaluation.length === 0) {
             return res.status(400).json({ message: "Question, description, constraints, duration, and correctAnswerFlow are required." });
+        }
+
+        if (!["easy", "medium", "hard"].includes(difficulty)){
+            return res.status(400).json({ message: "Invalid difficulty level." });
         }
 
         if ( correctAnswerFlow.some(step => !step.title || !step.approach || !step.step) ) {
@@ -49,6 +54,7 @@ export const createSystemDesignQuestion = async (req, res, next) => {
             question,
             description,
             constraints,
+            difficulty,
             duration,
             topics,
             companyTags,

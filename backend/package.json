@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "concurrently \"nodemon src/server.js\" \"nodemon src/jobs/interview.worker.js\"",
+    "start": "node src/server.js & node src/jobs/interview.worker.js",
     "db-init": "drizzle-kit push"
   },
   "keywords": [],
@@ -14,6 +14,7 @@
   "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@socket.io/redis-adapter": "^8.3.0",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.66.5",
@@ -29,6 +30,7 @@
     "openai": "^6.29.0",
     "pg": "^8.20.0",
     "redis": "^5.11.0",
+    "socket.io": "^4.8.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

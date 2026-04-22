@@ -17,6 +17,7 @@ export const createCaseStudy = async (req, res, next) => {
             title,
             description,
             difficulity,
+            duration,
             domain,
             type,
             previousContext,
@@ -32,7 +33,7 @@ export const createCaseStudy = async (req, res, next) => {
         } = req.body;
 
         if (
-            !title || !description || !difficulity ||
+            !title || !description || !difficulity || !duration ||
             !domain || !type || !previousContext ||
             !goal || !expectedApproach || expectedApproach.length === 0 ||
             !sampleSolution || !sampleSolution.answer ||
@@ -75,6 +76,7 @@ export const createCaseStudy = async (req, res, next) => {
             title,
             description,
             difficulity,
+            duration,
             domain,
             type,
             previousContext,

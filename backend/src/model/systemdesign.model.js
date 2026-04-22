@@ -14,6 +14,11 @@ const systemDesignSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        difficulty: {
+            type: String,
+            enum: ["easy", "medium", "hard"],
+            required: true,
+        },
         duration: { // expected duration of the interview in minutes (e.g. 45)
             type: Number,
             required: true,

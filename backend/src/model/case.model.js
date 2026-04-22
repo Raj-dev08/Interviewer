@@ -15,6 +15,10 @@ const caseSchema = new mongoose.Schema(
             enum: ["easy","medium","hard"],
             required: true
         },
+        duration:{
+            type:Number,
+            required: true
+        },
         domain:{
             type: String,
             enum: ["consulting", "finance", "product", "analytics", "general","sales","detective","medical"],
