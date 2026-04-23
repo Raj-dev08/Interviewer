@@ -18,6 +18,21 @@ export const LANGUAGE_MAP = {
   php: 68
 };
 
+export const INJECTION_MARKER = {
+    python: "# USER_CODE_HERE",
+    javascript: "// USER_CODE_HERE",
+    java: "// USER_CODE_HERE",
+    cpp: "// USER_CODE_HERE",
+    c: "// USER_CODE_HERE",
+    typescript: "// USER_CODE_HERE",
+    go: "// USER_CODE_HERE",
+    rust: "// USER_CODE_HERE",
+    ruby: "# USER_CODE_HERE",
+    kotlin: "// USER_CODE_HERE",
+    swift: "// USER_CODE_HERE",
+    php: "// USER_CODE_HERE",
+};
+
 export const createDSAQuestion = async (req, res, next) => {
     try {
         const { user } = req;
@@ -85,6 +100,17 @@ export const createDSAQuestion = async (req, res, next) => {
 
         if(codeInAllLangs.some(c => !c.lang || !c.starterCode || !c.solutionCode)){
             return res.status(400).json({ message: "Please provide lang, starterCode and solutionCode for all codeInAllLangs." });
+        }
+
+        const missingMarker = codeInAllLangs.find(c => {
+            const marker = INJECTION_MARKER[c.lang];
+            return !marker || !c.solutionCode.includes(marker);
+        });
+
+        if (missingMarker) {
+            return res.status(400).json({ 
+                message: `solutionCode for ${missingMarker.lang} is missing the injection marker (${INJECTION_MARKER[missingMarker.lang]})` 
+            });
         }
 
         if(!correctAnswer.language || !correctAnswer.code){
