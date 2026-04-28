@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import OpenAI from "openai"
 
 import { Worker } from "bullmq";
 import { redis } from "../lib/redis.js";
@@ -12,9 +13,16 @@ import SystemDesign from "../model/systemdesign.model.js";
 import caseStudy from "../model/case.model.js";
 import User from "../model/user.model.js";
 import Notification from "../model/notification.model.js";
+import SystemdesignChat from "../model/systemdesginchat.model.js";
 
 
 await connectDB();
+
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_API_KEY,
+  baseURL: process.env.AI_URL
+});
 
 const interviewWorker = new Worker("interview", async (job) => {
     try {
@@ -155,6 +163,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                 }
             })
 
+            const redisKey = `notificationsFor:${user._id}`
+
+            await redis.lpush(redisKey,JSON.stringify(notification))
+
             await emitSocketEvent(userId.toString(),"interview_created",{
                 interview: newInterview
             })
@@ -163,6 +175,64 @@ const interviewWorker = new Worker("interview", async (job) => {
                 notification
             })
         }  
+        else if (job.name === "startSysDesign"){
+            const { interviewId, userId, questionId } = job.data;
+            const user = await User.findById(userId);
+            const interview = await Interview.findById(interviewId);
+            const question = await SystemDesign.findById(questionId);
+
+            if (!user || user.isDisabled || !interview || !question ) {
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "User not found or is disabled or invalid interview type"
+                })
+                return 
+            }
+
+            if (interview.status !== "started"){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Interview is not started or is finished"
+                })
+                return
+            }
+
+            const systemPrompt = `
+                You are a senior software engineer conducting a system design interview.
+
+                Present the following problem clearly and professionally:
+
+                "${question.question}"
+
+                Do NOT provide a solution.
+
+                You may slightly elaborate the problem if needed for clarity, but do not reveal hints, constraints, or internal solution.
+
+                Keep the tone natural and interview-like, not instructional or overly verbose.
+            `
+
+            const decision = await openai.chat.completions.create({
+                model: "meta/llama3-70b-instruct",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    }
+                ]
+            });
+
+            const output = decision.choices[0].message.content;
+
+            const newMessage = await SystemdesignChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: output
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessage",{
+                newMessage
+            })
+        }
     } catch (error) {
         throw error;
     }

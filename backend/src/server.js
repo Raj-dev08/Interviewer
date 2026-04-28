@@ -18,6 +18,8 @@ import caseRoutes from "./routes/case.routes.js"
 import interviewRoutes from "./routes/interview.routes.js"
 import notificationRoutes from "./routes/notification.routes.js"
 import interviewFlowRoutes from "./routes/interviewflow.routes.js"
+import submissionRoutes from "./routes/submission.routes.js"
+
 
 
 
@@ -55,6 +57,7 @@ app.use("/api/case", protectRoute, caseRoutes);
 app.use("/api/interview", protectRoute, interviewRoutes);
 app.use("/api/notification",protectRoute,notificationRoutes)
 app.use("/api/interviewflow",protectRoute,interviewFlowRoutes)
+app.use("/api/submission",protectRoute,submissionRoutes)
 
 
 app.get("/api/health", (req, res) => {
