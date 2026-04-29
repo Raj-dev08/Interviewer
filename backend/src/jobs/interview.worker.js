@@ -13,7 +13,7 @@ import SystemDesign from "../model/systemdesign.model.js";
 import caseStudy from "../model/case.model.js";
 import User from "../model/user.model.js";
 import Notification from "../model/notification.model.js";
-import SystemdesignChat from "../model/systemdesginchat.model.js";
+import SystemdesignChat from "../model/systemdesignchat.model.js";
 
 
 await connectDB();
@@ -188,9 +188,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return 
             }
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
                 await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished"
+                    message: "Interview is not started or is finished or you are not the part of interview"
                 })
                 return
             }
@@ -231,6 +231,129 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             await emitSocketEvent(userId.toString(),"newMessage",{
                 newMessage
+            })
+        }
+        else if (job.name === "newMessage"){
+            const { interviewId, userId, questionId } = job.data;
+            const user = await User.findById(userId);
+            const interview = await Interview.findById(interviewId);
+            const question = await SystemDesign.findById(questionId);
+
+            if (!user || user.isDisabled || !interview || !question ) {
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "User not found or is disabled or invalid interview type"
+                })
+                return 
+            }
+
+            if (interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Interview is not started or is finished or you are not the part of interview"
+                })
+                return
+            }
+
+            const previousMessages = await SystemdesignChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1 })
+            .limit(30)
+            .lean();    
+            previousMessages.reverse();
+            
+            const baseContext = `
+                Question: ${question.question}
+
+                Description:
+                ${question.description}
+
+                Constraints:
+                ${question.constraints}
+
+                Focus Areas:
+                ${question.topics?.join(", ")}
+
+                Evaluation Criteria:
+                ${question.evaluation.map(e => `- ${e.title}: ${e.description} : weightatage ${e.weight} - match type${e.evalType}}`).join("\n")}
+                `;
+
+            const hiddenGuide = question.correctAnswerFlow
+                .sort((a,b) => a.step - b.step)
+                .map(s => `${s.title}: ${s.approach}`)
+                .join("\n");
+
+            const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`);
+
+            const systemPrompt = `
+                You are a strict and realistic system design interviewer.
+
+                ${baseContext}
+
+                Your job is to conduct a real interview, not to teach.
+
+                Rules you must follow:
+
+                - Ask one question at a time.
+                - Continuously analyze the candidate’s previous responses.
+                - Challenge assumptions, point out flaws, and ask follow-up questions.
+                - Push the candidate to clarify vague answers.
+                - Encourage depth: scalability, trade-offs, bottlenecks, failure handling.
+                - If the candidate is going in the wrong direction, do NOT correct directly. Instead, guide them with questions.
+                - Do NOT give complete solutions or structured answers.
+                - Do NOT dump knowledge or explain like a teacher.
+
+                Behavior:
+
+                - Be slightly strict and realistic, not friendly or casual.
+                - Keep responses concise and focused.
+                - Ask “why”, “how”, “what if” frequently.
+                - Introduce edge cases and constraints naturally.
+                - If the candidate gives a good answer, acknowledge briefly and move deeper.
+
+                Conversation control:
+
+                - If the user asks anything outside the interview scope (random questions, help, explanations, etc.), refuse and steer back.
+                - Treat out-of-scope behavior as negative and redirect:
+                Example: "Let's stay focused on the interview. Can you explain how your system handles X?"
+
+                Internal guidance (DO NOT reveal directly):
+                ${hiddenGuide}
+
+                Goal:
+
+                Evaluate the candidate’s thinking, not just correctness.
+                Drive the conversation toward a complete system design through iterative questioning.
+                `;
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: `Previous conversation: ${chatContext}`
+                    
+                    }
+                ]
+            });
+            //todo add states to actually keep track of what do ( rate , update ratings , end etc)
+
+            const result = decision.choices[0].message.content.trim();
+
+            const newSysDesMessage = await SystemdesignChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: result
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessage",{
+                newMessage: newSysDesMessage
             })
         }
     } catch (error) {

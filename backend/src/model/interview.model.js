@@ -39,8 +39,9 @@ const interviewShchema = new mongoose.Schema(
         },
         interviewRating:{
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Rating",
+            ref: "InterviewRating",
         },
+        
         duration:{//will be calculated by either ai or based on questions duration
             type: Number,
             required: true
