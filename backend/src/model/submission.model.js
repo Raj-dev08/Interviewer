@@ -32,7 +32,6 @@ const submissionSchema = new mongoose.Schema(
         },
         isCorrect: {
             type: Boolean,
-            required: true,
         },
         attemptNumber: {
             type: Number,
@@ -53,7 +52,7 @@ const submissionSchema = new mongoose.Schema(
 )
 submissionSchema.pre("validate", function (next) {
     if (this.questionType === "DSA") {
-        if(!this.language){
+        if(!this.language || this.isCorrect === undefined){
             return next(new Error("Language is required for DSA questions"))
         }
         next()

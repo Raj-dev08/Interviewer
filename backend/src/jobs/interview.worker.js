@@ -6,6 +6,8 @@ import { redis } from "../lib/redis.js";
 import { connectDB } from "../lib/db.js";
 import { emitSocketEvent } from "../lib/socket.publisher.js";
 import { getRandomQuestion } from "../helper/getQuestions.js";
+import { interviewQueue } from "../lib/interview.queue.js";
+import getPromptByType from "../helper/promptGen.js";
 
 import Interview from "../model/interview.model.js";
 import dsa from "../model/dsa.model.js";
@@ -14,6 +16,8 @@ import caseStudy from "../model/case.model.js";
 import User from "../model/user.model.js";
 import Notification from "../model/notification.model.js";
 import SystemdesignChat from "../model/systemdesignchat.model.js";
+import Submission from "../model/submission.model.js";
+import SysdesFeedback from "../model/sysdesfeedback.js";
 
 
 await connectDB();
@@ -253,6 +257,25 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return
             }
 
+            const redisKeyForEnd = `end-interview-chat:${interviewId}:${userId}:${questionId}`
+
+            if (await redis.exists(redisKeyForEnd)){
+                const sysGeneratedMsg = await SystemdesignChat.create({
+                    interviewId,
+                    userId,
+                    questionId,
+                    sentBy: "ai",
+                    message: "The conversation is finished please move to the next question or topic"
+                })
+
+                await emitSocketEvent(userId.toString(),"newMessage",{
+                    newMessage: sysGeneratedMsg
+                })
+
+                return;
+            }
+
+
             const previousMessages = await SystemdesignChat.find({
                 interviewId,
                 userId,
@@ -342,6 +365,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
             //todo add states to actually keep track of what do ( rate , update ratings , end etc)
 
+            
             const result = decision.choices[0].message.content.trim();
 
             const newSysDesMessage = await SystemdesignChat.create({
@@ -355,6 +379,431 @@ const interviewWorker = new Worker("interview", async (job) => {
             await emitSocketEvent(userId.toString(),"newMessage",{
                 newMessage: newSysDesMessage
             })
+
+            const decisionSystemPrompt = `
+                You are an interview controller engine.
+
+                Your job is to decide what should happen next in a system design interview.
+
+                You MUST return STRICT JSON only. No extra text.
+
+                OUTPUT FORMAT:
+
+                {
+                    "shouldRate": boolean,
+                    "shouldEnd": boolean,
+                    "nextAction": string
+                }
+
+                RULES:
+
+                1. ONLY return valid JSON.
+                2. NO extra keys. NO missing keys.
+
+                3. "nextAction" MUST be one of:
+                - "ask_followup"
+                - "explore_edge_cases"
+                - "ask_clarification"
+                - "challenge_assumption"
+                - "ask_tradeoffs"
+                - "ask_scaling"
+                - "ask_personal_experience"
+                - "wrap_up"
+
+                4. "shouldRate" = true ONLY when:
+                - The candidate has given a meaningful answer
+
+                5. "shouldEnd" = true ONLY when:
+                - Interview is complete
+                - OR candidate is stuck repeatedly
+
+                6. If "shouldEnd" = true:
+                - "nextAction" MUST be "wrap_up"
+
+                BEHAVIOR:
+
+                - Weak answer → clarification / followup
+                - Decent → go deeper
+                - Strong → move topic or edge cases
+                - Repeated failure → end
+
+                IMPORTANT:
+
+                - Never output invalid JSON
+                - Never invent new actions
+                `;
+            const judgeRes = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: decisionSystemPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `Previous conversation: ${chatContext}`
+                    
+                    }
+                ]
+            });
+
+            const outputRaw = judgeRes.choices[0].message.content.trim();
+            const output = JSON.parse(outputRaw);
+
+            if (output.shouldEnd ) {
+                await redis.set(redisKeyForEnd,"1","NX","EX",interview.duration * 60)
+            }
+
+            if (output.shouldRate) {
+                await interviewQueue.add("rateForMessage",{
+                    interviewId,
+                    userId,
+                    questionId
+                })
+            }
+
+            await interviewQueue.add("nextDecision",{
+                interviewId,
+                userId,
+                questionId,
+                type: output.nextAction
+            })
+           
+        }
+        else if ( job.name === "nextDecision"){
+            const { interviewId, userId, questionId, type } = job.data;
+            const user = await User.findById(userId);
+            const interview = await Interview.findById(interviewId);
+            const question = await SystemDesign.findById(questionId);
+
+            if (!user || user.isDisabled || !interview || !question ) {
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "User not found or is disabled or invalid interview type"
+                })
+                return 
+            }
+
+            if (interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Interview is not started or is finished or you are not the part of interview"
+                })
+                return
+            }
+
+            let previousMessages;
+
+            if (type === "ask_followup"){
+                previousMessages = await SystemdesignChat.find({
+                    interviewId,
+                    userId,
+                    questionId
+                }).sort({ createdAt: -1 })
+                .lean()
+            } else {
+                previousMessages = await SystemdesignChat.find({
+                    interviewId,
+                    userId,
+                    questionId
+                }).sort({ createdAt: -1 })
+                .limit(30)
+                .lean()
+            }
+            previousMessages.reverse();
+
+            const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`);
+
+           const baseContext = `
+                Question: ${question.question}
+
+                Description:
+                ${question.description}
+
+                Constraints:
+                ${question.constraints}
+
+                Focus Areas:
+                ${question.topics?.join(", ")}
+
+                Evaluation Criteria:
+                ${question.evaluation.map(e => `- ${e.title}: ${e.description} : weightatage ${e.weight} - match type${e.evalType}}`).join("\n")}
+                `;
+
+            const hiddenGuide = question.correctAnswerFlow
+                .sort((a,b) => a.step - b.step)
+                .map(s => `${s.title}: ${s.approach}`)
+                .join("\n");
+
+            const systemPrompt = getPromptByType(type,{
+                baseContext,
+                hiddenGuide,
+                chatContext
+            });
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: "complete the task given in the system prompt"             
+                    }
+                ]
+            });
+
+            const output = decision.choices[0].message.content.trim();
+
+            const newMessage = await SystemdesignChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: output
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessage",{
+                newMessage
+            })
+
+            //dont need anything like rate or finish cuz it is the exec layer all is either question or wrap up
+        }
+        else if ( job.name === "rateForMessage"){
+            const { interviewId, userId, questionId } = job.data;
+            const user = await User.findById(userId);
+            const interview = await Interview.findById(interviewId);
+            const question = await SystemDesign.findById(questionId);
+
+            if (!user || user.isDisabled || !interview || !question ) {
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "User not found or is disabled or invalid interview type"
+                })
+                return 
+            }
+
+            if (interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Interview is not started or is finished or you are not the part of interview"
+                })
+                return
+            }
+
+            const prevSubmission = await Submission.findOne({
+                interviewId,
+                userId,
+                questionId,
+                questionType:"SystemDesign",
+                difficulty: question.difficulty
+            }).sort({ attemptNumber: -1 })
+
+            const previousMessages = await SystemdesignChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1 })
+            .limit(30)
+            .lean();
+
+            previousMessages.reverse()
+
+            const chatContext = previousMessages.map((m) => `${m.sentBy}:${m.message}`).join("\n");
+
+            const lastUser = previousMessages
+            .filter(m => m.sentBy === "user")
+            .slice(-1)[0]?.message;
+
+
+            const ratingSystemPrompt = `
+                You are a strict system design interview scoring engine.
+
+                Your job is to adjust the candidate’s score based on their latest answer.
+
+                OUTPUT RULES:
+
+                - Return ONLY a number.
+                - No JSON.
+                - No text.
+                - No explanation.
+                - No symbols.
+                - No formatting.
+
+                The number must be between -1.0 and +1.0
+
+                SCORING GUIDE:
+
+                +1.0 → excellent deep system thinking, strong tradeoffs, scalable design  
+                +0.5 → good answer with some depth  
+                +0.2 → minor improvement  
+
+                -0.2 → shallow or incomplete  
+                -0.5 → incorrect reasoning  
+                -1.0 → completely wrong or irrelevant  
+
+                IMPORTANT:
+
+                - Focus on the LAST user answer
+                - Use recent conversation for context
+                - Reward depth, tradeoffs, scalability
+                - Penalize vague, generic, repeated, or contradictory answers
+                - Do NOT average or normalize
+                `;
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: ratingSystemPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `
+                            lastest user answer: ${lastUser}   
+                            
+                            Previous conversation: ${chatContext}
+                           
+                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5 }
+                        `
+                    
+                    }
+                ]
+            }); 
+            
+            const raw = decision.choices[0].message.content.trim();
+
+            // extract number safely
+            const match = raw.match(/-?\d+(\.\d+)?/);
+            let delta = match ? parseFloat(match[0]) : 0;
+            delta = Math.max(-1, Math.min(1, delta));
+            if (prevSubmission){
+                const current = prevSubmission ? prevSubmission.totalPoint : 5;
+
+                // dynamic scaling
+                const gainFactor = (10 - current) / 10;   // harder to grow near 10
+                const lossFactor = current / 10;          // harsher penalty near top
+
+                let adjustedDelta;
+
+                if (delta > 0) {
+                    adjustedDelta = delta * ( gainFactor * 1.2 );
+                } else {
+                    adjustedDelta = delta * ( lossFactor * 1.5 );
+                }
+
+
+                let newScore = current + adjustedDelta;
+
+                newScore = Math.max(0, Math.min(10, newScore));
+
+                await Submission.findOneAndUpdate({
+                    interviewId,
+                    userId,
+                    questionId,
+                    questionType: "SystemDesign",
+                    difficulty: question.difficulty
+                },{
+                    totalPoint: newScore ,
+                    percentageBeaten: Math.round((newScore/10) * 100)
+                })
+            } else {
+                const baseScore = 5;
+
+                const newScore = Math.max(0, Math.min(10, baseScore + delta));
+
+                const newSubmission = await Submission.create({
+                    interviewId,
+                    userId,
+                    questionId,
+                    questionType: "SystemDesign",
+                    difficulty: question.difficulty,
+                    attemptNumber: 1,//one attempt per sysdes not making new  stuff
+                    totalPoint: newScore,
+                    percentageBeaten: Math.round((newScore/10)*100)
+                })
+            }
+
+            const prevFeedBack = await SysdesFeedback.findOne({
+                interviewId,
+                userId,
+                questionId
+            })
+
+            const feedbackPrompt = `
+                You are a strict system design interviewer giving feedback.
+
+                Your job is to evaluate the candidate’s latest answer and provide actionable feedback.
+
+                You MUST return STRICT JSON only. No extra text.
+
+                OUTPUT FORMAT:
+
+                {
+                    "strengths": [string],
+                    "weaknesses": [string],
+                    "improvements": [string]
+                }
+
+                RULES:
+
+                - Be concise
+                - No fluff
+                - No generic praise
+                - Focus on system design thinking
+                - Mention scalability, tradeoffs, clarity, depth
+                - Call out vague or incorrect reasoning
+
+                IMPORTANT:
+
+                - Focus primarily on the LAST user answer
+                - Use recent conversation for context
+                - Do NOT explain full solutions
+                - Do NOT teach step-by-step
+                `;
+
+            const feedbackdecision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: feedbackPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `
+                            lastest user answer: ${lastUser}   
+                            
+                            Previous conversation: ${chatContext}
+                           
+                            ${prevFeedBack ? `Prev feedback : 
+                            Strength: ${prevFeedBack.strength.join("; ")} , 
+                            weakness: ${prevFeedBack.weakness.jon("; ")} , 
+                            improvement: ${prevFeedBack.improvement.join("; ")}` : ""}
+                        `
+                    
+                    }
+                ]
+            }); 
+
+            const outputForFeedback = feedbackdecision.choices[0].message.content.trim();
+
+            const parsed = JSON.parse(outputForFeedback);
+
+            await SysdesFeedback.findOneAndUpdate({
+                interviewId,
+                userId,
+                questionId,
+            },{
+                strength: parsed.strengths,
+                weakness: parsed.weaknesses,
+                improvement: parsed.improvements
+            },{
+                upsert: true,
+                new: true
+            })
+            
+            
+
         }
     } catch (error) {
         throw error;
