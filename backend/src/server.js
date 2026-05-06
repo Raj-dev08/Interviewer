@@ -19,6 +19,7 @@ import interviewRoutes from "./routes/interview.routes.js"
 import notificationRoutes from "./routes/notification.routes.js"
 import interviewFlowRoutes from "./routes/interviewflow.routes.js"
 import submissionRoutes from "./routes/submission.routes.js"
+import dsaChatRoutes from "./routes/dsachat.routes.js"
 
 
 
@@ -58,6 +59,7 @@ app.use("/api/interview", protectRoute, interviewRoutes);
 app.use("/api/notification",protectRoute,notificationRoutes)
 app.use("/api/interviewflow",protectRoute,interviewFlowRoutes)
 app.use("/api/submission",protectRoute,submissionRoutes)
+app.use("/api/dsa-chat",protectRoute,dsaChatRoutes)
 
 
 app.get("/api/health", (req, res) => {

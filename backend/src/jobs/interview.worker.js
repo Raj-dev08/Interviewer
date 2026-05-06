@@ -21,6 +21,7 @@ import Submission from "../model/submission.model.js";
 import SysdesFeedback from "../model/sysdesfeedback.js";
 import CaseChat from "../model/casechat.model.js";
 import CaseFeedback from "../model/caseStudyFeedback.model.js";
+import dsaChat from "../model/dsachat.model.js";
 
 
 await connectDB();
@@ -1681,7 +1682,131 @@ const interviewWorker = new Worker("interview", async (job) => {
             //TO_DO : make full analysis report with ai like how he performed what can be done better where he messed up 
             
         }
+        else if ( job.name === "startAiListeningForDSA"){
+            const { interviewId, userId, questionId } = job.data;
+            const user = await User.findById(userId); 
+            
+            if (!user || user.isDisabled){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "User not found or is disabled"
+                })
+                return
+            }
+            const redisKey = `ongoingInterview:${interviewId}`;
+            const cached = await redis.get(redisKey);
 
+            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
+
+            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Interview is not started or is finished or you are not the part of interview"
+                })
+                return
+            }
+            const question = await dsa.findById(questionId);
+
+            if (!question || !interview.case.includes(questionId.toString())){
+                await emitSocketEvent(userId.toString(),"error",{
+                    message: "Question not found in interview"
+                })
+                return
+            }
+
+            const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+
+            const lockedBucket = await redis.set(redisKeyForDataBucket,"1","NX","EX",interview.duration * 60)
+
+            if (!lockedBucket){
+                return;
+            }
+
+            const baseContextForQuestion = `
+                Question Title: ${question.title}
+
+                Description: ${question.description}
+
+                example: 
+                ${question.example.map((t) => 
+                    `input: ${t.input} ,
+                    output: ${t.output} , 
+                    ${t.explanation ? 
+                    `explanation: ${t.explanation}` : 
+                    ""}
+                    `).join("\n")}
+            `
+
+            const systemPromt = `
+                You are an AI DSA interview assistant inside a live coding interview system.
+
+                Your role is ONLY to introduce the problem at the start of the interview.
+
+                You will receive a DSA problem object containing:
+                - title
+                - description
+                - examples
+
+                TASK:
+                1. Greet the candidate in a natural, professional tone (no fluff, no emojis).
+                2. Briefly introduce the problem.
+                3. If needed, explain the problem in simple terms using the given examples.
+                4. Clearly state what the user needs to solve (input → output behavior).
+                5. Do NOT give hints, approaches, optimizations, or solutions.
+                6. Do NOT continue the conversation beyond this message.
+
+                STYLE:
+                - Interview-style (FAANG interviewer tone)
+                - Concise and direct
+                - No motivational content
+
+                OUTPUT FORMAT:
+                Start with:
+                "Hi, let's begin the interview."
+
+                Then:
+                - Problem introduction
+                - Simple explanation (only if needed)
+                - Example explanation (only if needed)
+
+                END WITH EXACT LINE:
+                "Let me know if you have any queries, if not start the coding."
+
+                Return only the final message. No extra text.
+                `;
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPromt
+                    },
+                    {
+                        role: "user",
+                        content: baseContextForQuestion
+                    }
+                ]
+            })
+
+            const output = decision.choices[0].message.content.trim();
+
+
+            const newMessage = await dsaChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: output
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+                newMessage
+            })
+
+            
+        }
+        else if (job.name === "newDSAMessage"){
+            //TO_DO
+        }
     } catch (error) {
         throw error;
     }

@@ -44,4 +44,6 @@ export const initSocket = async (server) => {
 
 };
 
+//add socket listening here to list the messages will use socket poling to call for typing events and accumulated ai response with decision
+
 export { io };
