@@ -22,6 +22,7 @@ import SysdesFeedback from "../model/sysdesfeedback.js";
 import CaseChat from "../model/casechat.model.js";
 import CaseFeedback from "../model/caseStudyFeedback.model.js";
 import dsaChat from "../model/dsachat.model.js";
+import dsaFeedBack from "../model/dsaFeedBack.model.js";
 
 
 await connectDB();
@@ -31,6 +32,71 @@ const openai = new OpenAI({
   apiKey: process.env.AI_API_KEY,
   baseURL: process.env.AI_URL
 });
+
+
+
+
+const validateInterviewQuestionContext = async ({
+  userId,
+  interviewId,
+  questionId,
+  QuestionModel,
+  interviewStatus = "started",
+  interviewQuestionPath = "case"
+}) => {
+  try {
+    if (
+      !mongoose.Types.ObjectId.isValid(userId) ||
+      !mongoose.Types.ObjectId.isValid(interviewId) ||
+      !mongoose.Types.ObjectId.isValid(questionId)
+    ) {
+      return { ok: false, message: "Invalid IDs" };
+    }
+
+    const user = await User.findById(userId);
+    if (!user || user.isDisabled) {
+      return { ok: false, message: "User not found or is disabled" };
+    }
+
+    const redisKey = `ongoingInterview:${interviewId}`;
+    const cached = await redis.get(redisKey);
+
+    const interview =
+      cached ? JSON.parse(cached) : await Interview.findById(interviewId);
+
+    if (
+      !interview ||
+      interview.status !== interviewStatus ||
+      interview.userId.toString() !== user._id.toString()
+    ) {
+      return { ok: false, message: "Interview invalid" };
+    }
+
+    const question = await QuestionModel.findById(questionId);
+
+    const questionList = interview.questions[questionType]
+
+    const existsInInterview = Array.isArray(questionList)
+      ? questionList.some((q) => q._id.toString() === questionId)
+      : false;
+
+    if (!question || !existsInInterview) {
+      return { ok: false, message: "Question not found" };
+    }
+
+    return {
+      ok: true,
+      user,
+      interview,
+      question
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err.message || "Validation failed"
+    };
+  }
+};
 
 const interviewWorker = new Worker("interview", async (job) => {
     try {
@@ -185,33 +251,25 @@ const interviewWorker = new Worker("interview", async (job) => {
         }  
         else if (job.name === "startSysDesign"){
             const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
             
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: SystemDesign,
+                interviewStatus: "started",
+                interviewQuestionPath: "sysDes"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await SystemDesign.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
+
             const systemPrompt = `
                 You are a senior software engineer conducting a system design interview.
 
@@ -227,7 +285,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             `
 
             const decision = await openai.chat.completions.create({
-                model: "meta/llama3-70b-instruct",
+                model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
                     {
                         role: "system",
@@ -252,33 +310,24 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if (job.name === "newMessage"){
             const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
             
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: SystemDesign,
+                interviewStatus: "started",
+                interviewQuestionPath: "sysDes"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await SystemDesign.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const redisKeyForEnd = `end-interview-chat:${interviewId}:${userId}:${questionId}`
 
@@ -388,14 +437,14 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             
-            const result = decision.choices[0].message.content.trim();
+            const msg = decision.choices[0].message.content.trim();
 
             const newSysDesMessage = await SystemdesignChat.create({
                 interviewId,
                 userId,
                 questionId,
                 sentBy: "ai",
-                message: result
+                message: msg
             })
 
             await emitSocketEvent(userId.toString(),"newMessage",{
@@ -493,34 +542,24 @@ const interviewWorker = new Worker("interview", async (job) => {
            
         }
         else if ( job.name === "nextDecision"){
-            const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
-            
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const { interviewId, userId, questionId, type } = job.data;
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: SystemDesign,
+                interviewStatus: "started",
+                interviewQuestionPath: "sysDes"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await SystemDesign.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             let previousMessages;
 
@@ -603,33 +642,24 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if ( job.name === "rateForMessage"){
             const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
             
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: SystemDesign,
+                interviewStatus: "started",
+                interviewQuestionPath: "sysDes"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await SystemDesign.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const prevSubmission = await Submission.findOne({
                 interviewId,
@@ -845,7 +875,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                            
                             ${prevFeedBack ? `Prev feedback : 
                             Strength: ${prevFeedBack.strength.join("; ")} , 
-                            weakness: ${prevFeedBack.weakness.jon("; ")} , 
+                            weakness: ${prevFeedBack.weakness.join("; ")} , 
                             improvement: ${prevFeedBack.improvement.join("; ")}` : ""}
                         `
                     
@@ -875,33 +905,24 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if ( job.name === "startCaseStudy"){
             const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
             
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: caseStudy,
+                interviewStatus: "started",
+                interviewQuestionPath: "case"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await caseStudy.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const caseContext = `
                 TITLE: ${question.title}
@@ -985,33 +1006,23 @@ const interviewWorker = new Worker("interview", async (job) => {
         else if ( job.name === "newMessageCase") {
             const { interviewId, userId, questionId } = job.data;
 
-            const user = await User.findById(userId); 
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: caseStudy,
+                interviewStatus: "started",
+                interviewQuestionPath: "case"
+            });
+
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
 
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview invalid"
-                })
-                return
-            }
-
-            const question = await caseStudy.findById(questionId);
-
-            if (!question || !interview.questions.case.some(q => q._id.toString() === questionId)){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const redisKeyForEnd = `end-case-chat:${interviewId}:${userId}:${questionId}`
 
@@ -1112,14 +1123,14 @@ const interviewWorker = new Worker("interview", async (job) => {
                 ]
             });
 
-            const result = decision.choices[0].message.content.trim();
+            const msg = decision.choices[0].message.content.trim();
 
             const newMsg = await CaseChat.create({
                 interviewId,
                 userId,
                 questionId,
                 sentBy: "ai",
-                message: result
+                message: msg
             });
 
             await emitSocketEvent(userId.toString(),"newMessageCaseStudy",{ newMessage: newMsg });
@@ -1191,35 +1202,25 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
         }
         else if ( job.name === "nextDecisionCase"){
-            const { interviewId, userId, questionId } = job.data;
+            const { interviewId, userId, questionId, type } = job.data;
 
-            const user = await User.findById(userId); 
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: caseStudy,
+                interviewStatus: "started",
+                interviewQuestionPath: "case"
+            });
+
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
 
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview invalid"
-                })
-                return
-            }
-
-            const question = await caseStudy.findById(questionId);
-
-            if (!question || !interview.questions.case.some(q => q._id.toString() === questionId)){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             let prevQuestions;
 
@@ -1265,7 +1266,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const hiddenGuide = question.expectedApproach.join("\n");
 
-            const systempPrompt = getCasePromptByType(type,{
+            const systemPrompt = getCasePromptByType(type,{
                 baseContext,
                 hiddenGuide,
                 chatContext
@@ -1303,33 +1304,23 @@ const interviewWorker = new Worker("interview", async (job) => {
         else if ( job.name === "rateForMessageCase"){
             const { interviewId, userId, questionId } = job.data;
 
-            const user = await User.findById(userId); 
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
+           const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: caseStudy,
+                interviewStatus: "started",
+                interviewQuestionPath: "case"
+            });
+
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
 
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview invalid"
-                })
-                return
-            }
-
-            const question = await caseStudy.findById(questionId);
-
-            if (!question || !interview.questions.case.some(q => q._id.toString() === questionId)){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const prevSubmission = await Submission.findOne({
                 interviewId,
@@ -1684,33 +1675,23 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if ( job.name === "startAiListeningForDSA"){
             const { interviewId, userId, questionId } = job.data;
-            const user = await User.findById(userId); 
-            
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "User not found or is disabled"
-                })
-                return
-            }
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: dsa,
+                interviewStatus: "started",
+                interviewQuestionPath: "dsa"
+            });
 
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Interview is not started or is finished or you are not the part of interview"
-                })
-                return
+            if (!result.ok) {
+            await emitSocketEvent(userId.toString(), "error", {
+                message: result.message
+            });
+            return;
             }
-            const question = await dsa.findById(questionId);
 
-            if (!question || !interview.case.includes(questionId.toString())){
-                await emitSocketEvent(userId.toString(),"error",{
-                    message: "Question not found in interview"
-                })
-                return
-            }
+            const { user, interview, question } = result;
 
             const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
 
@@ -1804,8 +1785,454 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             
         }
-        else if (job.name === "newDSAMessage"){
+        else if ( job.name === "newDSAMessage"){
+            const {  interviewId, userId, questionId , messageId } = job.data
+
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: dsa,
+                interviewStatus: "started",
+                interviewQuestionPath: "dsa"
+            });
+
+            if (!result.ok) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
+            }
+
+            const { user, interview, question } = result;
+
+            const messages = await dsaChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1 }).limit(30).lean(); //we have no delay so last 30 message per user should be enough and no need for re fetch
+
+            const chatContext = messages.map(m => `${m.sentBy}: ${m.message}`).join("\n");
+
+
+            let latestMessage = messages.find(m => m._id.toString() === messageId);
+
+            if (!latestMessage){
+                latestMessage = await dsaChat.findById(messageId)
+
+                if (!latestMessage){
+                    console.log("data message issue in dsa chat new chat")
+                    await emitSocketEvent(userId.toString(), "error", {
+                        message: "the message not found try again later"
+                    });
+                    return;
+                }
+            }
+
+            const redisBucketKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+
+            const code = await redis.get(redisBucketKey);
+
+            const systemPrompt =` 
+                You are an AI interviewer conducting a live DSA interview.
+
+                Your job is NOT to teach. Your job is to evaluate, question, and guide the candidate's thinking like a real interviewer.
+
+                ---
+
+                PROBLEM:
+                Title: ${question.title}
+                Description: ${question.description}
+                Correct Code language: ${question.correctAnswer.language}
+                Correct Code: 
+                \`\`\`
+                ${question.correctAnswer.code}
+                \`\`\`
+                ---
+
+                CHAT HISTORY:
+                ${chatContext? chatContext : "No previous messages"}
+
+                ---
+
+                ${hasCode ? `
+                AVAILABLE CODE CONTEXT:
+                \`\`\`
+                ${code}
+                \`\`\`
+
+                Use this code as the current working state.
+                Do NOT ask the user to resend it.
+
+                ` : `
+                NO CODE PROVIDED YET.
+                The candidate may still be explaining approach or thinking out loud.
+                `}
+
+                ---
+
+                YOUR PRIMARY OBJECTIVES:
+
+                1. UNDERSTAND
+                - First interpret what the user is trying to say (idea, approach, or answer)
+
+                2. EVALUATE
+                - Check if the idea is correct, partially correct, or wrong
+                - Identify missing edge cases or logical gaps
+
+                3. RESPOND LIKE AN INTERVIEWER
+                - Do NOT explain full solutions
+                - Do NOT lecture or give long theory
+                - Keep responses short and sharp
+
+                4. ASK FOLLOW-UPS WHEN NEEDED
+                - If unclear → ask precise clarification questions
+                - If partially correct → challenge assumptions
+                - If wrong → point out issue and redirect thinking
+
+                5. IF CODE EXISTS
+                - Treat it as ground truth state
+                - Debug, question logic, or point out flaws directly
+                - Do NOT request full rewrite unless necessary
+
+                ---
+
+                RESPONSE STYLE:
+                - Concise
+                - Direct
+                - Interview tone (like Google/Microsoft interviewer)
+                - One idea or one question per response
+                `;
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `
+                            Current message from user: ${latestMessage.message}
+                            
+                        `
+                    
+                    }
+                ]
+            }); 
+
+            const output = decision.choices[0].message.content.trim();
+
+            const newMessage = await dsaChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: output
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+                newMessage
+            })
+
             //TO_DO
+        }
+        else if ( job.name === "decideNextDecision"){
+            const { interviewId, userId, questionId } = job.data
+
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: dsa,
+                interviewStatus: "started",
+                interviewQuestionPath: "dsa"
+            });
+
+            if (!result.ok) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
+            }
+
+            const { user, interview, question } = result;
+
+            const redisKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+            const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;
+
+            const mostRecentCode = await redis.get(redisKey)
+            
+            const history = await redis.get(historyKey)
+
+
+            const previousMessages = await dsaChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1}).limit(30).lean()
+
+            const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`).join("\n");
+
+
+            const systemPrompt = `
+                You are an AI DSA interview evaluator.
+
+                You DO NOT explain solutions.
+                You DO NOT teach.
+                You DO NOT give reasoning.
+
+                You ONLY classify the user's current state in the interview.
+
+                ---
+
+                INPUT:
+
+                LATEST CODE:
+                ${mostRecentCode || "NO CODE"}
+
+                CODE HISTORY:
+                ${history || "NO HISTORY"}
+
+                CHAT CONTEXT:
+                ${chatContext || "NO CHAT"}
+
+                Question:
+
+                ${question.title}
+
+                ${question.description}
+
+                solution: ${question.correctAnswer.code}
+
+
+                ---
+
+                YOUR TASK:
+
+                Classify the user's state into ONE of the following:
+
+                1. ASK_FOLLOW_UP
+                - User intent unclear
+                - Needs clarification
+
+                2. DEBUG_CODE
+                - Code exists and has bugs or runtime/logical issues
+
+                3. EVALUATE_SOLUTION
+                - User has given a complete or near complete approach/solution
+
+                4. PROVIDE_HINT
+                - User is stuck but close to solution
+
+                5. EDGE_CASES
+                - Solution works but missing edge cases or constraints handling
+
+                6. WRONG_LOGIC
+                - Core idea is incorrect
+
+                7. STUCK
+                - User paused, confused, or no progress
+
+                8. FINISH
+                - Solution is correct or interview is complete
+
+                9. GENERATE_FEEDBACK
+                - Final evaluation of user performance should be generated
+
+                ---
+
+                IMPORTANT RULES:
+
+                - Choose ONLY ONE primary action
+                - No explanations
+                - No natural language response
+                - Think like a strict FAANG interviewer routing system
+
+                ---
+
+                OUTPUT FORMAT (STRICT JSON ONLY):
+
+                {
+                    "action": "ASK_FOLLOW_UP | DEBUG_CODE | EVALUATE_SOLUTION | PROVIDE_HINT | EDGE_CASES | WRONG_LOGIC | STUCK | FINISH | GENERATE_FEEDBACK",
+                    "generateFeedback": true | false
+                }
+                `;
+
+            const decisionRaw =  await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `
+                            Evaluate
+                        `
+                    }
+                ]
+            }); 
+
+            const decision = decisionRaw.choices[0].message.content.trim();
+            let output
+            try {
+                output = JSON.parse(decision)
+            } catch (error){
+                console.log(error,"in deciding dsa chat")
+                output = {
+                    action: "ASK_FOLLOW_UP",
+                    generateFeedback: false
+                }
+            }
+
+            await interviewQueue.add("nextDecisionForDSA",{
+                interviewId,
+                userId,
+                questionId,
+                type: output.action
+            })
+
+            if (output.generateFeedback){
+                const feedbackPrompt = `
+                    You are a senior FAANG DSA interviewer.
+
+                    You are generating FINAL INTERVIEW FEEDBACK for a candidate after completing a DSA interview.
+
+                    You do NOT continue the interview.
+                    You do NOT give hints.
+                    You do NOT explain solutions.
+
+                    You ONLY evaluate performance and produce structured feedback.
+
+                    ---
+
+                    INPUT CONTEXT:
+
+                    QUESTION:
+                    ${question.title}
+
+                    ${question.description}
+
+                    EXPECTED SOLUTION (reference only, do NOT explain):
+                    ${question.correctAnswer.code}
+
+                    LATEST CODE:
+                    ${mostRecentCode || "NO CODE PROVIDED"}
+
+                    CODE HISTORY:
+                    ${history || "NO HISTORY"}
+
+                    CHAT CONTEXT:
+                    ${chatContext || "NO CHAT"}
+
+                    ---
+
+                    EVALUATION GOAL:
+
+                    Assess how the candidate performed in a real interview setting.
+
+                    Focus on:
+                    - correctness of approach
+                    - problem-solving ability
+                    - communication clarity
+                    - coding quality
+                    - speed of progress
+
+                    ---
+
+                    VERDICT RULES:
+
+                    - STRONG_HIRE → excellent approach, correct solution, strong clarity
+                    - HIRE → mostly correct, minor issues
+                    - BORDERLINE → partial understanding, inconsistent logic
+                    - NO_HIRE → incorrect approach or major gaps
+
+                    ---
+
+                    SCORES (1 to 10):
+
+                    - problemSolving → ability to break down and approach problem
+                    - communication → clarity in explaining thought process
+                    - speed → how efficiently they progressed
+                    - codeQuality → structure, readability, correctness
+                    - correctness → final correctness of solution
+
+                    ---
+
+                    IMPORTANT RULES:
+
+                    - Be strict like FAANG interviewer
+                    - Be honest, no sugarcoating
+                    - No explanations outside JSON
+                    - Output MUST be valid JSON only
+
+                    ---
+
+                    OUTPUT FORMAT:
+
+                    {
+                        "verdict": "STRONG_HIRE | HIRE | BORDERLINE | NO_HIRE",
+                        "summary": "2-4 line concise evaluation of the candidate's performance",
+                        "scores": {
+                            "problemSolving": 1-10,
+                            "communication": 1-10,
+                            "speed": 1-10,
+                            "codeQuality": 1-10,
+                            "correctness": 1-10
+                        }
+                    }
+                    `;
+
+                const feedbackDecisionRaw = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: feedbackPrompt   
+                        },
+                        {
+                            role: "user",
+                            content: `
+                                Give Feedback
+                            `
+                        }
+                    ]
+                }); 
+
+                const feedBackRaw = feedbackDecisionRaw.choices[0].message.content.trim()
+                let feedback
+                
+                try {
+                    feedback = JSON.parse(feedBackRaw)
+                } catch (error) {
+                    console.log(error)
+                    feedback = {
+                        verdict: "BORDERLINE",
+                        summary: "This is a generic response due to ai failed",
+                        scores: {
+                            problemSolving: 5,
+                            communication: 5,
+                            speed: 5,
+                            codeQuality: 5,
+                            correctness: 5
+                        }
+                    }
+                }
+
+                await dsaFeedBack.create({
+                    interviewId,
+                    userId,
+                    questionId,
+                    feedback
+                })
+            }
+
+        }
+        else if ( job.name === "nextDecisionForDSA"){
+            //TO_DO: make this and add the decision stuff across run and submit
         }
     } catch (error) {
         throw error;

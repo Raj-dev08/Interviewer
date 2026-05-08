@@ -1,5 +1,7 @@
 import { Server } from "socket.io";
 import { createClient } from "redis";
+import { interviewQueue } from "./interview.queue.js";
+import { redis } from "./redis.js";
 
 let io;
 export const initSocket = async (server) => {
@@ -36,9 +38,52 @@ export const initSocket = async (server) => {
       console.log("User connected:", userId);
     }
 
+    socket.on("codeChange", async(data) => {
+      try {
+        const { code, interviewId, userId, questionId } = data
+
+        const redisKeyForInit = `timestamp-to-exec-for-${interviewId}:${userId}:${questionId}`   
+        const redisKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+        const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;
+
+
+        const result = await redis.set(redisKey, code, "XX", "EX", 60 * 60); // duration isnt usually more wont trust frontend and searching is a bit heavy
+
+        if (!result) {
+          console.log("Key does not exist, not updated");
+        }
+
+        await redis.rpush(
+          historyKey,
+          JSON.stringify({
+            code,
+            ts: Date.now()
+          })
+        );
+
+        await redis.ltrim(historyKey, -50, -1);
+
+
+        const execute = await redis.set(redisKeyForInit,"1","NX","EX", 5 * 60 ) //5 mins for this
+        
+        if (!execute){
+          await interviewQueue.add("decideNextDecision",{
+            interviewId,
+            userId,
+            questionId
+          })
+        }
+
+
+      } catch (error) {
+        console.log(error);
+      }
+    })
+
     socket.on("disconnect", () => {
       console.log("Socket disconnected:", socket.id);
     });
+
 
   });
 
