@@ -31,6 +31,9 @@ const SystemdesignChatSchema = new mongoose.Schema(
     }
 )
 
+SystemdesignChatSchema.index({ createdAt: -1 });
+
+
 const SystemdesignChat = mongoose.model("SystemdesignChat", SystemdesignChatSchema);
 
 export default SystemdesignChat;

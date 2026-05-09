@@ -171,6 +171,12 @@ export const runDSAQuestion = async (req, res, next) => {
             return res.status(400).json({ message: "running code too fast"})
         }
 
+        await interviewQueue.add("decideNextDecision",{
+            interviewId,
+            userId: user._id,
+            questionId
+        })
+
         const selectedCodeLang = dsaQuestion.codeInAllLangs.find(c => c.lang === language);
         const marker = INJECTION_MARKER[language];
         const finalCode = selectedCodeLang.solutionCode.replace(marker, code);
@@ -368,6 +374,12 @@ export const submitDSAQuestion = async (req, res, next) => {
         if(!locked){
             return res.status(400).json({ message: "submitting code too fast"})
         }
+
+        await interviewQueue.add("decideNextDecision",{
+            interviewId,
+            userId: user._id,
+            questionId
+        })
 
         const selectedCodeLang = dsaQuestion.codeInAllLangs.find(c => c.lang === language);
         const marker = INJECTION_MARKER[language];

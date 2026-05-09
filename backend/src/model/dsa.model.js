@@ -65,6 +65,22 @@ const dsaSchema = new mongoose.Schema(
             type: String,
             required: true,
         }],
+        codeInAllLangs: [
+            {
+                lang:{
+                    type: String,
+                    required: true,
+                },
+                starterCode:{
+                    type: String,
+                    required: true,
+                },
+                solutionCode:{//runs the starter code + (users) and validates 
+                    type: String,
+                    required: true,
+                }
+            }
+        ],
         maxMemory: { // Max memory limit in MB
             type: Number,
             required: true,

@@ -9,6 +9,7 @@ import { getRandomQuestion } from "../helper/getQuestions.js";
 import { interviewQueue } from "../lib/interview.queue.js";
 import getPromptByType from "../helper/promptGen.js";
 import getCasePromptByType from "../helper/promptGenCase.js";
+import { buildDSANextStepPrompt } from "../helper/promptGenDSA.js";
 
 import Interview from "../model/interview.model.js";
 import dsa from "../model/dsa.model.js";
@@ -36,7 +37,7 @@ const openai = new OpenAI({
 
 
 
-const validateInterviewQuestionContext = async ({
+export const validateInterviewQuestionContext = async ({
   userId,
   interviewId,
   questionId,
@@ -1675,6 +1676,13 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if ( job.name === "startAiListeningForDSA"){
             const { interviewId, userId, questionId } = job.data;
+
+            const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
+
+            if(redis.exists(finishKeyRedis)){
+                return
+            }
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -1787,6 +1795,15 @@ const interviewWorker = new Worker("interview", async (job) => {
         }
         else if ( job.name === "newDSAMessage"){
             const {  interviewId, userId, questionId , messageId } = job.data
+
+            const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
+
+            if(redis.exists(finishKeyRedis)){
+                await emitSocketEvent(userId.toString(),"notification",{
+                    message: "DSA TALK FOR THIS QUESTION IS DONE MOVE TO THE NEXT !"
+                })
+                return
+            }
 
             const result = await validateInterviewQuestionContext({
                 userId,
@@ -1936,10 +1953,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 newMessage
             })
 
-            //TO_DO
         }
         else if ( job.name === "decideNextDecision"){
             const { interviewId, userId, questionId } = job.data
+
+            const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
+
+            if(redis.exists(finishKeyRedis)){
+                return
+            }
 
             const result = await validateInterviewQuestionContext({
                 userId,
@@ -2037,9 +2059,6 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 8. FINISH
                 - Solution is correct or interview is complete
-
-                9. GENERATE_FEEDBACK
-                - Final evaluation of user performance should be generated
 
                 ---
 
@@ -2222,17 +2241,328 @@ const interviewWorker = new Worker("interview", async (job) => {
                     }
                 }
 
-                await dsaFeedBack.create({
-                    interviewId,
-                    userId,
-                    questionId,
-                    feedback
-                })
+                await dsaFeedBack.findOneAndUpdate(
+                    {
+                        interviewId,
+                        userId,
+                        questionId
+                    },
+                    {
+                        $set: {
+                            verdict: feedback.verdict,
+                            summary: feedback.summary,
+                            scores: feedback.scores
+                        },
+                        $setOnInsert: {
+                            interviewId,
+                            userId,
+                            questionId
+                        }
+                    },
+                    {
+                        upsert: true
+                    }
+                )
             }
 
         }
         else if ( job.name === "nextDecisionForDSA"){
-            //TO_DO: make this and add the decision stuff across run and submit
+            const { interviewId, userId, questionId , type} = job.data
+            
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: dsa,
+                interviewStatus: "started",
+                interviewQuestionPath: "dsa"
+            });
+
+            if (!result.ok) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
+            }
+
+            if (type == 'FINISH'){
+                const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
+
+                await redis.set(finishKeyRedis,"1","NX","EX",interview.duration * 60)
+            }
+
+            const { user, interview, question } = result;
+
+            const redisKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+            const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;
+
+            const history = await redis.get(historyKey)
+            const code = await redis.get(redisKey)
+
+
+            const previousMessages = await dsaChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1}).limit(30).lean()
+
+            const chatContext = previousMessages.map( m=> `${m.sentBy} : ${m.message}`).join("\n")
+
+            const systemPrompt = buildDSANextStepPrompt({ type, question, mostRecentCode: code, history, chatContext})
+
+            const decision = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt   
+                    },
+                    {
+                        role: "user",
+                        content: `
+                            Generate response
+                        `
+                    
+                    }
+                ]
+            }); 
+
+            const output = decision.choices[0].message.content.trim();
+
+            const newMessage = await dsaChat.create({
+                interviewId,
+                userId,
+                questionId,
+                sentBy: "ai",
+                message: output
+            })
+
+            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+                newMessage
+            })
+
+        }
+        else if (job.name === "generateFeedbackForTheInterView") {
+
+            const { interviewId, userId, questionId, type } = job.data;
+
+            if (!["dsa", "sysDes", "case"].includes(type)) {
+                return;
+            }
+
+            const user = await User.findById(userId);
+
+            if (!user || user.isDisabled) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: "User is disabled"
+                });
+                return;
+            }
+
+            const interview = await Interview.findById(interviewId)
+                .populate("questions.dsa")
+                .populate("questions.sysDes")
+                .populate("questions.case");
+
+            if (!interview || interview.userId.toString() !== userId.toString()) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: "Invalid interview"
+                });
+                return;
+            }
+
+            const callAI = async (prompt) => {
+                const res = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        { role: "system", content: prompt },
+                        { role: "user", content: "Generate feedback" }
+                    ]
+                });
+
+                const raw = res.choices[0].message.content
+                    .replace(/```json/g, "")
+                    .replace(/```/g, "")
+                    .trim();
+
+                return JSON.parse(raw);
+            };
+
+
+            let question;
+
+            if (type === "dsa") {
+                question = interview.questions.dsa.find(q => q._id.toString() === questionId.toString());
+            }
+
+            if (type === "sysDes") {
+                question = interview.questions.sysDes.find(q => q._id.toString() === questionId.toString());
+            }
+
+            if (type === "case") {
+                question = interview.questions.case.find(q => q._id.toString() === questionId.toString());
+            }
+
+            if (!question) return;
+
+
+            const feedbackModel =
+                type === "dsa" ? dsaFeedBack :
+                type === "sysDes" ? SysdesFeedback :
+                CaseFeedback;
+
+            const existing = await feedbackModel.findOne({
+                interviewId,
+                userId,
+                questionId
+            });
+
+            if (existing) return;
+
+        
+            const submission = await Submission.findOne({
+                interviewId,
+                userId,
+                questionId,
+                questionType:
+                    type === "dsa" ? "DSA" :
+                    type === "sysDes" ? "SystemDesign" :
+                    "CaseStudy"
+            });
+
+            const chatModel =
+                type === "dsa" ? dsaChat :
+                type === "sysDes" ? SystemdesignChat :
+                CaseChat;
+
+            const chat = await chatModel.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: 1 }).lean();
+
+            const formatChat = (msgs) =>
+                msgs.map(m => `${m.sentBy}: ${m.message}`).join("\n");
+
+            if (!submission){
+                console.log("cant find submission for feedback")
+                return
+            }
+
+            let prompt;
+
+            if (type === "dsa") {
+                prompt = `
+                    You are a FAANG DSA interviewer.
+
+                    QUESTION:
+                    ${question.title}
+                    ${question.description}
+
+                    SUBMISSION:
+                    ${JSON.stringify(submission)}
+
+                    CHAT:
+                    ${formatChat(chat)}
+
+                    OUTPUT JSON:
+                    {
+                        "verdict": "STRONG_HIRE | HIRE | BORDERLINE | NO_HIRE",
+                        "summary": "...",
+                        "scores": {
+                                "problemSolving": 1-10,
+                                "communication": 1-10,
+                                "speed": 1-10,
+                                "codeQuality": 1-10,
+                                "correctness": 1-10
+                            }
+                    }
+                    `;
+            }
+
+            if (type === "sysDes") {
+                prompt = `
+                    You are a FAANG System Design interviewer.
+
+                    QUESTION:
+                    ${question.question}
+                    ${question.description}
+                    correct flow : 
+                    ${question.correctAnswerFlow.map(q => `${q.title}-${q.approach}-${q.step}`).join("\n")}
+
+                    evaluation: 
+                    ${question.evaluation.map(q=>`${q.title}:${q.description}:${q.evalType}:weight${q.weight}`).join("\n")}
+                    SUBMISSION:
+                    ${JSON.stringify(submission)}
+
+                    CHAT:
+                    ${formatChat(chat)}
+
+                    OUTPUT JSON:
+                    {
+                    "strength": ["..."],
+                    "weakness": ["..."],
+                    "improvement": ["..."],
+                    "scores": {
+                        "architecture": 1-10,
+                        "scalability": 1-10,
+                        "tradeoffs": 1-10,
+                        "communication": 1-10
+                    }
+                    }
+                    `;
+            }
+
+            if (type === "case") {
+                prompt = `
+                    You are a FAANG Case Study interviewer.
+
+                    QUESTION:
+                    ${question.title}
+                    ${question.description}
+                    expected approach
+                    ${question.expectedApproach.join("\n")}
+                    evaluation
+                    ${question.evaluation.map(q => `${q.category}:${q.description},weight: ${q.weight}`).join("\n")}
+                    SUBMISSION:
+                    ${JSON.stringify(submission)}
+
+                    CHAT:
+                    ${formatChat(chat)}
+
+                    OUTPUT JSON:
+                    {
+                    "strength": ["..."],
+                    "weakness": ["..."],
+                    "improvement": ["..."],
+                    "scores": {
+                        "clarity": 1-10,
+                        "problemSolving": 1-10,
+                        "decisionMaking": 1-10,
+                        "communication": 1-10
+                    }
+                    }
+                    `;
+            }
+
+            const feedback = await callAI(prompt);
+
+            await feedbackModel.create({
+                interviewId,
+                userId,
+                questionId,
+                ...feedback
+            });
+            await Notification.create({
+                userId,
+                title: `FeedBack generated`,
+                message: `Your feedback for ${type} question , with description ${question.description} is ready`
+            })
+            await emitSocketEvent(userId.toString(), "question-feedback-ready", {
+                type,
+                questionId,
+                feedback
+            });
         }
     } catch (error) {
         throw error;
