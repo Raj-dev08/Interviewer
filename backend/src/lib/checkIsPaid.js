@@ -13,14 +13,14 @@ export const verifyAndSyncSubscription = async (userId) => {
 
         const result = await db.transaction(async (tx) => {
 
-            const { rows } = await tx.execute(sql`
+            const result = await tx.execute(sql`
                 SELECT *
                 FROM subscriptions
                 WHERE user_id = ${userId} AND status = 'active'
                 FOR UPDATE
             `);
 
-            const pgSub = rows[0] || null;
+            const pgSub = result[0] || null;
 
             const user = await User.findById(userId).select("currentSubscription isPaid");
 
@@ -68,7 +68,7 @@ export const verifyAndSyncSubscription = async (userId) => {
         return result;
 
     } catch (err) {
-        console.log("Subscription check failed:", err.message);
+        console.log("Subscription check failed:", err);
         return false;
     }
 };
