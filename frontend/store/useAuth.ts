@@ -88,6 +88,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem("sessionId", res.data.sessionId);
       toast.success("Account created");
       get().connectSocket();
+      get().checkAuth();
       return res.data;
     } catch (error: any) {
       toast.error(
@@ -110,6 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem("sessionId", res.data.sessionId);
       toast.success("Login successful");
       get().connectSocket();
+      get().checkAuth();
       return res.data;
     } catch (error: any) {
       toast.error(
@@ -151,13 +153,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const sessionId = localStorage.getItem("sessionId");
       if (!sessionId) {
         set({ user: null });
+        set({ isCheckingAuth: false });
         return null;
       }
       const res = await axiosInstance.get("/auth/check");
       set({ user: res.data });
       get().connectSocket();
       return res.data;
-    } catch {
+    } catch  {
       set({ user: null });
       return null;
     } finally {
@@ -235,6 +238,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await axiosInstance.put("/auth/enable-account");
       toast.success("Account enabled");
+      get().checkAuth();
       return true;
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed");

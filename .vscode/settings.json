@@ -1,0 +1,10 @@
+{
+    "python-envs.pythonProjects": [
+        {
+            "path": "frontend/app/client/(main)/profile",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ],
+    "postman.settings.dotenv-detection-notification-visibility": false
+}

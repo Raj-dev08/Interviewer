@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/store/useAuth";
 
-export default function HomePage() {
+export default function GuestRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
 
   const {
@@ -19,20 +23,14 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!isCheckingAuth) {
-      if (user) {
-        router.push("/client");
-      } else {
-        router.push("/auth/login");
-      }
+    if (!isCheckingAuth && user) {
+      router.replace("/client");
     }
   }, [user, isCheckingAuth]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-zinc-400">
-        Loading...
-      </p>
-    </div>
-  );
+  if (isCheckingAuth) {
+    return null;
+  }
+
+  return children;
 }

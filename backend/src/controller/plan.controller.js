@@ -358,3 +358,60 @@ export const activeSubscriptionsReport = async(req, res, next) => {
     }
 }
 
+export const getPaymentById = async (req, res, next) => {
+    try {
+        const { user } = req;
+
+        if (user.isDisabled) {
+            return res.status(403).json({
+                message: "Your account is disabled. Please contact support."
+            });
+        }
+
+        const { paymentId } = req.params;
+
+        if (!paymentId) {
+            return res.status(400).json({
+                message: "Payment ID is required."
+            });
+        }
+
+        const { rows } = await db.execute(sql`
+            SELECT 
+                p.*,
+                s.user_id,
+                s.status as subscription_status,
+                s.plan_id,
+                pl.name as plan_name,
+                pl.description as plan_description,
+                pl.duration_days,
+                pl.price
+            FROM payments p
+            JOIN subscriptions s 
+                ON p.subscription_id = s.id
+            JOIN plans pl 
+                ON s.plan_id = pl.id
+            WHERE p.id = ${paymentId}
+            LIMIT 1
+        `);
+
+        const payment = rows[0];
+
+        if (!payment) {
+            return res.status(404).json({
+                message: "Payment not found."
+            });
+        }
+
+        if (payment.user_id !== user._id) {
+            return res.status(403).json({
+                message: "Unauthorized access."
+            });
+        }
+
+        return res.status(200).json(payment);
+
+    } catch (error) {
+        next(error);
+    }
+};

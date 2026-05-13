@@ -8,6 +8,7 @@ import {
     getUserSubscriptions, 
     getActiveSubscription, 
     getAllPayments, 
+    getPaymentById,
     getTotalRevenue, 
     activeSubscriptionsReport  
 } from "../controller/plan.controller.js";
@@ -17,10 +18,11 @@ const router = Router();
 router.post("/", createPlan);
 router.get("/", getAllPlans);
 router.post("/subscribe/:planId", subscribeToPlan);
-router.post("/pay/:subscriptionId", payForSubscription);
+router.post("/pay/:paymentId", payForSubscription);
 router.delete("/cancel/:subscriptionId", cancelSubscription);
 router.get("/user", getUserSubscriptions);
 router.get("/active", getActiveSubscription);
+router.get("/payments/:paymentId", getPaymentById);
 router.get("/payments", getAllPayments);
 router.get("/revenue", getTotalRevenue);
 router.get("/report", activeSubscriptionsReport);
