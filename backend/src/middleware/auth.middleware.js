@@ -49,7 +49,7 @@ export const protectRoute = async (req, res, next) => {
             }
 
             
-            const success = await verifyAndSyncSubscription(user._id);
+            const success = await verifyAndSyncSubscription(user._id.toString());
 
             if(!success){
                 return res.status(400).json({ message: "Payment check failed try again later"})
@@ -69,7 +69,7 @@ export const protectRoute = async (req, res, next) => {
                 const { token, user } = await generateAccessToken(sessionId);
                 res.setHeader("Authorization", `Bearer ${token}`);
 
-                const success = await verifyAndSyncSubscription(user._id);
+                const success = await verifyAndSyncSubscription(user._id.toString());
 
                 if(!success){
                     return res.status(400).json({ message: "Payment check failed try again later"})

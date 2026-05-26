@@ -1,16 +1,16 @@
 "use client";
 
-import ProtectedRoute from "@/components/ProtectedRoutes";
+import AdminRoute from "@/components/AdminRoutes";
 import DashboardSidebar from "@/components/SideBar";
 import MobileBottomBar from "@/components/MobilebottomBar";
 
-export default function MainLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <ProtectedRoute>
+    <AdminRoute>
       <div className="flex min-h-screen bg-zinc-950 text-white">
 
         <DashboardSidebar />
@@ -20,9 +20,10 @@ export default function MainLayout({
           <div className="flex-1 overflow-y-auto pb-24 md:pb-0">
             {children}
           </div>
+
           <MobileBottomBar />
         </main>
       </div>
-    </ProtectedRoute>
+    </AdminRoute>
   );
 }

@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 
 import { useAuthStore } from "@/store/useAuth";
+import { queryClient } from "@/lib/queryClient";
+import { usePlanStore } from "@/store/usePayment";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -42,6 +44,19 @@ export default function ProfilePage() {
     const success = await logout();
 
     if (success) {
+
+    // clear react query cache + states
+      queryClient.clear();
+
+      usePlanStore.setState({
+        plans: [],
+        subscriptions: [],
+        activeSubscription: null,
+        payments: [],
+        currentPayment: null,
+        loading: false,
+      });
+
       router.replace("/auth/login");
     }
   };

@@ -19,6 +19,7 @@ export const plans = pgTable("plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   description: text("description").notNull(),
+  features: text("features").notNull(), //comma separated features for simplicity
   price: integer("price").notNull(),
   durationDays: integer("duration_days").notNull(),
 });

@@ -16,13 +16,13 @@ export const createPlan = async(req, res, next) =>{
             return res.status(403).json({ message: "Only owners can create plans." });
         }
 
-        const { name, description, price, durationDays } = req.body;
+        const { name, description, features, price, durationDays } = req.body;
 
-        if (!name || !description || price === undefined || durationDays === undefined) {
-            return res.status(400).json({ message: "Name, description, price, and duration are required." });
+        if (!name || !description || !features || price === undefined || durationDays === undefined) {
+            return res.status(400).json({ message: "Name, description, features, price, and duration are required." });
         }
 
-        const newPlan = await queries.createPlan({ name, description, price, durationDays });
+        const newPlan = await queries.createPlan({ name, description, features, price, durationDays });
 
         if (!newPlan) {
             return res.status(500).json({ message: "Failed to create plan." });
@@ -65,7 +65,7 @@ export const subscribeToPlan = async(req, res, next) => {
 
         const result = await db.transaction(async (tx) => {
             const createdSubscription = await tx.insert(subscriptions).values({
-                userId: user._id,
+                userId: user._id.toString(),
                 planId,
                 startDate: new Date(),
                 endDate: new Date(), // place holder, will be updated upon successful payment
@@ -131,7 +131,7 @@ export const payForSubscription = async(req, res, next) => {
                 throw new Error("Payment not found.");
             }
 
-            if (payment.user_id !== user._id) {
+            if (payment.user_id !== user._id.toString()) {
                throw new Error("You are not authorized to pay for this subscription.");
             }
 
@@ -165,7 +165,7 @@ export const payForSubscription = async(req, res, next) => {
             await tx.execute(sql`
                 UPDATE subscriptions
                 SET status = 'inactive'
-                WHERE user_id = ${user._id}
+                WHERE user_id = ${user._id.toString()}
                     AND status = 'active'
             `);
 
@@ -191,7 +191,7 @@ export const payForSubscription = async(req, res, next) => {
         }
 
         await User.findOneAndUpdate(
-            { _id: user._id },
+            { _id: user._id.toString() },
             { $set: { isPaid: true , currentSubscription: result.subscription.id} }
         )
 
@@ -199,7 +199,7 @@ export const payForSubscription = async(req, res, next) => {
 
         return res.status(200).json(result);
     } catch (error) {
-        if (err.code === "23505") {
+        if (error?.code === "23505") {
             throw new Error("Active subscription already exists");
         }
         next(error);
@@ -235,7 +235,7 @@ export const cancelSubscription = async (req, res, next) => {
                 throw new Error("Subscription not found.");
             }
 
-            if (subscription.user_id !== user._id) {
+            if (subscription.user_id !== user._id.toString()) {
                 throw new Error("You are not authorized to cancel this subscription.");
             }
 
@@ -251,6 +251,11 @@ export const cancelSubscription = async (req, res, next) => {
             if (!updated || updated.length === 0) {
                 throw new Error("Failed to cancel subscription.");
             }
+
+            await User.findOneAndUpdate(
+                { _id: user._id.toString() },
+                { $set: { isPaid: false, currentSubscription: "" } }
+            )
 
             return updated[0];
         });
@@ -286,7 +291,7 @@ export const getActiveSubscription = async(req, res, next) => {
             return res.status(403).json({ message: "Your account is disabled. Please contact support." });
         }
 
-        const subscription = await queries.getActiveSubscriptionByUserId(user._id);
+        const subscription = await queries.getActiveSubscriptionByUserId(user._id.toString());
 
         if (!subscription) {
             return res.status(404).json({ message: "No active subscription found." });
@@ -396,6 +401,7 @@ export const getPaymentById = async (req, res, next) => {
         `);
 
         const payment = rows[0];
+        console.log("Payment details fetched from DB:", payment);
 
         if (!payment) {
             return res.status(404).json({
@@ -403,7 +409,7 @@ export const getPaymentById = async (req, res, next) => {
             });
         }
 
-        if (payment.user_id !== user._id) {
+        if (payment.user_id !== user._id.toString()) {
             return res.status(403).json({
                 message: "Unauthorized access."
             });
@@ -414,4 +420,4 @@ export const getPaymentById = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-};
+}; 

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  Home,
   User,
   CreditCard,
   FileQuestion,
   History,
   LayoutDashboard,
+  Users,
+  Crown,
 } from "lucide-react";
 
 import { useAuthStore } from "@/store/useAuth";
@@ -21,11 +22,12 @@ export default function DashboardSidebar() {
 
   const { user } = useAuthStore();
 
+  const isAdminRoute = pathname.startsWith("/admin");
+
   return (
-    <aside className="hidden md:flex w-72 flex-col border-r border-zinc-800 bg-zinc-900/50">
+    <aside className="hidden w-72 flex-col border-r border-zinc-800 bg-zinc-900/50 md:flex">
 
       <div className="border-b border-zinc-800 p-6">
-
         <h1 className="text-2xl font-bold">
           MockIT
         </h1>
@@ -37,61 +39,97 @@ export default function DashboardSidebar() {
 
       <nav className="flex-1 space-y-2 p-4">
 
-        <Link href="/client">
-          <SidebarItem
-            icon={<LayoutDashboard size={18} />}
-            label="Dashboard"
-            active={pathname === "/client"}
-          />
-        </Link>
+        {!isAdminRoute ? (
+          <>
+            <Link href="/client">
+              <SidebarItem
+                icon={<LayoutDashboard size={18} />}
+                label="Dashboard"
+                active={pathname === "/client"}
+              />
+            </Link>
 
-        <Link href="/client/previous">
-          <SidebarItem
-            icon={<History size={18} />}
-            label="Previous Interviews"
-            active={pathname.startsWith("/client/previous")}
-          />
-        </Link>
+            <Link href="/client/previous">
+              <SidebarItem
+                icon={<History size={18} />}
+                label="Previous Interviews"
+                active={pathname.startsWith("/client/previous")}
+              />
+            </Link>
 
-        <Link href="/client/questions">
-          <SidebarItem
-            icon={<FileQuestion size={18} />}
-            label="Questions"
-            active={pathname.startsWith("/client/questions")}
-          />
-        </Link>
+            <Link href="/client/questions">
+              <SidebarItem
+                icon={<FileQuestion size={18} />}
+                label="Questions"
+                active={pathname.startsWith("/client/questions")}
+              />
+            </Link>
 
-        <Link href="/client/plans">
-          <SidebarItem
-            icon={<CreditCard size={18} />}
-            label="Plans"
-            active={pathname.startsWith("/client/plans")}
-          />
-        </Link>
+            <Link href="/client/plans">
+              <SidebarItem
+                icon={<CreditCard size={18} />}
+                label="Plans"
+                active={pathname.startsWith("/client/plans")}
+              />
+            </Link>
 
-        <Link href="/client/profile">
-          <SidebarItem
-            icon={<User size={18} />}
-            label="Profile"
-            active={pathname.startsWith("/client/profile")}
-          />
-        </Link>
+            <Link href="/client/profile">
+              <SidebarItem
+                icon={<User size={18} />}
+                label="Profile"
+                active={pathname.startsWith("/client/profile")}
+              />
+            </Link>
 
-        {user?.isOwner && (
-          <Link href="/admin/questions">
-            <SidebarItem
-              icon={<FileQuestion size={18} />}
-              label="Admin Questions"
-              active={pathname.startsWith("/admin")}
-            />
-          </Link>
+            {user?.isOwner && (
+              <Link href="/admin">
+                <SidebarItem
+                  icon={<Crown size={18} />}
+                  label="Go To Admin"
+                  active={false}
+                />
+              </Link>
+            )}
+          </>
+        ) : (
+          <>
+            <Link href="/admin">
+              <SidebarItem
+                icon={<LayoutDashboard size={18} />}
+                label="Admin Dashboard"
+                active={pathname === "/admin"}
+              />
+            </Link>
+
+            <Link href="/admin/questions">
+              <SidebarItem
+                icon={<FileQuestion size={18} />}
+                label="Manage Questions"
+                active={pathname.startsWith("/admin/questions")}
+              />
+            </Link>
+
+            <Link href="/admin/plans">
+              <SidebarItem
+                icon={<CreditCard size={18} />}
+                label="Manage Plans"
+                active={pathname.startsWith("/admin/plans")}
+              />
+            </Link>
+            
+            <Link href="/client">
+              <SidebarItem
+                icon={<Users size={18} />}
+                label="Back To Client"
+                active={false}
+              />
+            </Link>
+          </>
         )}
       </nav>
 
       <div className="border-t border-zinc-800 p-4">
-
         <div className="rounded-xl bg-zinc-800 p-4">
-
           <p className="text-sm font-medium">
             Current Plan
           </p>

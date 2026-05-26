@@ -7,6 +7,7 @@ import { redis } from "../lib/redis.js";
 export const verifyAndSyncSubscription = async (userId) => {
     const lockKey = `sub_check:${userId}`;
 
+
     try {
         const lock = await redis.get(lockKey);
         if (lock) return true;
