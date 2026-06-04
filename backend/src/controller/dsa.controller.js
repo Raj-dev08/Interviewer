@@ -113,6 +113,8 @@ export const createDSAQuestion = async (req, res, next) => {
             });
         }
 
+        console.log("coming here")
+
         if(!correctAnswer.language || !correctAnswer.code){
             return res.status(400).json({ message: "Please provide language and code for correctAnswer." });
         }
@@ -124,6 +126,8 @@ export const createDSAQuestion = async (req, res, next) => {
         if(!["exact","custom"].includes(validationType)){
             return res.status(400).json({ message: "validationType must be either 'exact' or 'custom'." });
         }
+
+        console.log("coming still")
 
         if(validationType === "custom"){
             if(!validationCode || !validationCode.language || !validationCode.code){
@@ -162,49 +166,51 @@ export const createDSAQuestion = async (req, res, next) => {
             }
         }
 
+        console.log("coming")
+
         if(!availableLanguages.includes(correctAnswer.language)){
             return res.status(400).json({ message: `Please provide starter and solution code for ${correctAnswer.language}.` });
         }
 
-        const safeParse = (v) => {
-                try {
-                    return typeof v === "string" ? JSON.parse(v) : v;
-                } catch {
-                    return v;
-                }
-            };
-
         const batchedInput = JSON.stringify(
-            testCases.map(tc => safeParse(tc.input))
+            testCases.map(tc => tc.input)
         );
 
+        console.log("batchedInput:", batchedInput);
+        console.log(process.env.RAPID_URL, process.env.RAPIDAPI_KEY)
 
         let response = await axios.post(
             process.env.RAPID_URL,
             {
-                source_code: correctAnswer.code, // FULL code from frontend
-                language_id: LANGUAGE_MAP[correctAnswer.language],
+                language: correctAnswer.language,
                 stdin: batchedInput,
-                cpu_time_limit: maxTime / 1000,
-                memory_limit: maxMemory * 1024
+                files: [
+                    {
+                        name:
+                            correctAnswer.language === "python"
+                                ? "main.py"
+                                : "main.cpp",
+                        content: correctAnswer.code
+                    }
+                ]
             },
             {
                 headers: {
-                "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-                "x-rapidapi-host": "judge029.p.rapidapi.com",
-                "Content-Type": "application/json"
+                    "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+                    "x-rapidapi-host": "onecompiler-apis.p.rapidapi.com",
+                    "Content-Type": "application/json"
                 }
             }
         );
+
+        console.log("Judge API response for correct answer code:", response.data);
         if (!response?.data) {
             return res.status(500).json({ message: "Judge API failed" });
         }
 
-        if( response.data.status.id !== 3){
-            return res.status(400).json({ message: "Correct answer code did not pass validation. Please check your correct answer code and try again.", ans: response.data });
+        if (response.data.status !== "success") {
+            return res.status(400).json({ message: "correctAnswer code did not run successfully. Please check your code and try again.", ans: response.data });
         }
-
-        
 
         let validationResult = true;
         
@@ -215,20 +221,20 @@ export const createDSAQuestion = async (req, res, next) => {
             .filter(Boolean);
 
             
-            const validationInput = {
+            const validationInput = JSON.stringify({
                 testCases: testCases.map((tc, i) => ({
-                    input: safeParse(tc.input),
-                    expected: safeParse(tc.output),
+                    input: tc.input,
+                    expected: String(tc.output),
                     actual: out[i]
                 }))
-            };
+            });
             const validatorRes = await axios.post(
                 process.env.RAPID_URL,
                 {
                     source_code: validationCode.code,
                     language_id: LANGUAGE_MAP[validationCode.language],
 
-                    stdin: JSON.stringify(validationInput),
+                    stdin: validationInput,
 
                     cpu_time_limit: maxTime / 1000,
                     memory_limit: maxMemory * 1024
@@ -263,12 +269,15 @@ export const createDSAQuestion = async (req, res, next) => {
 
         const clean = (s) => (s || "").replace(/\s+/g, "");
 
-        const outputs = (response.data.stdout || "")
+        const outputs =(response.data.stdout || "")
             .split("\n")
             .map(o => clean(o))
             .filter(Boolean);
 
         const expectedOutputs = testCases.map(tc => clean(tc.output));
+
+        // console.log("Outputs:", outputs);
+        // console.log("Expected outputs:", expectedOutputs);
 
         // console.log("Outputs:", outputs);
         // console.log("Expected outputs:", expectedOutputs);
@@ -315,6 +324,8 @@ export const createDSAQuestion = async (req, res, next) => {
     }
 }
 
+
+//only used in interviews
 export const getDSAQuestion = async (req, res, next) => {
     try {
         const { user } = req;
@@ -385,17 +396,8 @@ export const addTestCases = async (req, res, next) => {
             return res.status(400).json({ message: "Please provide input and output for all test cases." });
         }
 
-        const safeParse = (v) => {
-            try {
-                return typeof v === "string" ? JSON.parse(v) : v;
-            } catch {
-                return v;
-            }
-        };
-
-
         const batchedInput = JSON.stringify(
-            testCases.map(tc => safeParse(tc.input))
+            testCases.map(tc => tc.input)
         );
 
         const response = await axios.post(
@@ -432,13 +434,13 @@ export const addTestCases = async (req, res, next) => {
                 .map(o => o.trim())
                 .filter(Boolean);
 
-            const validationInput = {
+            const validationInput = JSON.stringify({
                 testCases: testCases.map((tc, i) => ({
-                    input: safeParse(tc.input),
-                    expected: safeParse(tc.output),
+                    input: tc.input,
+                    expected: String(tc.output),
                     actual: output[i]
                 }))
-            };
+            });
 
             const validatorRes = await axios.post(
                 process.env.RAPID_URL,

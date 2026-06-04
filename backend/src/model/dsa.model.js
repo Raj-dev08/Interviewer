@@ -48,8 +48,7 @@ const dsaSchema = new mongoose.Schema(
         testCases: [
             {
                 input: {
-                    type: String,
-                    required: true,
+                    type:  mongoose.Schema.Types.Mixed, // we will store the input as a JSON object
                 },
                 output: {
                     type: String,

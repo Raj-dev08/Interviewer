@@ -181,16 +181,11 @@ export const runDSAQuestion = async (req, res, next) => {
         const marker = INJECTION_MARKER[language];
         const finalCode = selectedCodeLang.solutionCode.replace(marker, code);
 
-        const safeParse = (v) => {
-            try {
-                return typeof v === "string" ? JSON.parse(v) : v;
-            } catch { return v; }
-        };
 
         const visibleTestCases = dsaQuestion.testCases.filter(tc => !tc.isHidden);
 
         const batchedInput = JSON.stringify(
-            visibleTestCases.map(tc => safeParse(tc.input))
+            visibleTestCases.map(tc =>tc.input)
         );
 
         const response = await axios.post(
@@ -231,13 +226,13 @@ export const runDSAQuestion = async (req, res, next) => {
             .filter(Boolean);
 
         if (dsaQuestion.validationType === "custom") {
-            const validationInput = {
+            const validationInput = JSON.stringify({
                 testCases: visibleTestCases.map((tc, i) => ({
-                    input: safeParse(tc.input),
-                    expected: safeParse(tc.output),
+                    input: tc.input,
+                    expected: String(tc.output),
                     actual: actualOutputs[i]
                 }))
-            };
+            });
 
             const validatorRes = await axios.post(
                 process.env.RAPID_URL,
@@ -385,15 +380,10 @@ export const submitDSAQuestion = async (req, res, next) => {
         const marker = INJECTION_MARKER[language];
         const finalCode = selectedCodeLang.solutionCode.replace(marker, code);
 
-        const safeParse = (v) => {
-            try {
-                return typeof v === "string" ? JSON.parse(v) : v;
-            } catch { return v; }
-        };
 
 
         const batchedInput = JSON.stringify(
-            dsaQuestion.testCases.map(tc => safeParse(tc.input))
+            dsaQuestion.testCases.map(tc => tc.input)
         );
 
         const response = await axios.post(
@@ -447,13 +437,13 @@ export const submitDSAQuestion = async (req, res, next) => {
             .filter(Boolean);
 
         if (dsaQuestion.validationType === "custom") {
-            const validationInput = {
+            const validationInput = JSON.stringify({
                 testCases: dsaQuestion.testCases.map((tc, i) => ({
-                    input: safeParse(tc.input),
-                    expected: safeParse(tc.output),
+                    input: tc.input,
+                    expected: String(tc.output),
                     actual: actualOutputs[i]
                 }))
-            };
+            });
 
             const validatorRes = await axios.post(
                 process.env.RAPID_URL,
