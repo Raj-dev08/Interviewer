@@ -166,7 +166,7 @@ export const createDSAQuestion = async (req, res, next) => {
             }
         }
 
-        console.log("coming")
+        // console.log("coming")
 
         if(!availableLanguages.includes(correctAnswer.language)){
             return res.status(400).json({ message: `Please provide starter and solution code for ${correctAnswer.language}.` });
@@ -176,8 +176,23 @@ export const createDSAQuestion = async (req, res, next) => {
             testCases.map(tc => tc.input)
         );
 
-        console.log("batchedInput:", batchedInput);
-        console.log(process.env.RAPID_URL, process.env.RAPIDAPI_KEY)
+        // console.log("batchedInput:", batchedInput);
+        // console.log(process.env.RAPID_URL, process.env.RAPIDAPI_KEY)
+
+        // console.log("Making request to Judge API for correct answer code...")
+        // console.log("Request payload:", {
+        //     language: correctAnswer.language,
+        //     stdin: batchedInput,
+        //     files: [
+        //         {
+        //             name:
+        //                 correctAnswer.language === "python"
+        //                     ? "main.py"
+        //                     : "main.cpp",
+        //             content: correctAnswer.code
+        //         }
+        //     ]
+        // });
 
         let response = await axios.post(
             process.env.RAPID_URL,
@@ -203,7 +218,7 @@ export const createDSAQuestion = async (req, res, next) => {
             }
         );
 
-        console.log("Judge API response for correct answer code:", response.data);
+        // console.log("Judge API response for correct answer code:", response.data);
         if (!response?.data) {
             return res.status(500).json({ message: "Judge API failed" });
         }
@@ -228,34 +243,43 @@ export const createDSAQuestion = async (req, res, next) => {
                     actual: out[i]
                 }))
             });
+            // console.log("Validation input for custom validator:", validationInput);
+
             const validatorRes = await axios.post(
                 process.env.RAPID_URL,
                 {
-                    source_code: validationCode.code,
-                    language_id: LANGUAGE_MAP[validationCode.language],
-
+                    language: validationCode.language,
                     stdin: validationInput,
-
-                    cpu_time_limit: maxTime / 1000,
-                    memory_limit: maxMemory * 1024
+                    files: [
+                        {
+                            name:
+                                validationCode.language === "python"
+                                    ? "main.py"
+                                    : "main.cpp",
+                            content: validationCode.code
+                        }
+                    ]
                 },
                 {
                     headers: {
                         "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-                        "x-rapidapi-host": "judge029.p.rapidapi.com",
+                        "x-rapidapi-host": "onecompiler-apis.p.rapidapi.com",
                         "Content-Type": "application/json"
                     }
                 }
             );
+            // console.log("Validator Judge API response:", validatorRes.data);
 
             if (!validatorRes?.data) {
                 return res.status(500).json({ message: "Validator Judge API failed" });
             }
 
-            if(validatorRes.data.status.id !== 3){
+            if(validatorRes.data.status !== "success"){
                 return res.status(400).json({ message: "validationCode did not pass validation. Please check your validation code and try again.", ans: validatorRes.data });
             }
             const parsed = JSON.parse(validatorRes.data.stdout || "{}");
+
+            // console.log("Parsed validator output:", parsed);
 
             validationResult = parsed.allPassed === true;
 

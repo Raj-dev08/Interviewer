@@ -707,6 +707,67 @@ export default function AdminCreateDSAPage() {
           ))}
         </div>
 
+        {/* ================= VALIDATION CONFIG ================= */}
+        <div className={`rounded-3xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4 ${form.validationType === "custom" ? "min-h-[400px]" : "min-h-[150px]"}`}>
+          <h2 className="font-semibold">Validation Logic</h2>
+
+          <select
+            value={form.validationType}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                validationType: e.target.value,
+              })
+            }
+            className="w-full rounded-2xl bg-zinc-950 border border-zinc-800 p-3"
+          >
+            <option value="exact">Exact Match</option>
+            <option value="custom">Custom Code Validation</option>
+          </select>
+
+          {/* only show editor if custom */}
+          {form.validationType === "custom" && (
+            <>
+              <select
+                value={form.validationCode.language}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    validationCode: {
+                      ...form.validationCode,
+                      language: e.target.value,
+                    },
+                  })
+                }
+                className="w-full rounded-2xl bg-zinc-950 border border-zinc-800 p-3"
+              >
+                <option value="">Select Language</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex-1 min-h-[250px]">
+                <CodeEditor
+                  value={form.validationCode.code}
+                  language={form.validationCode.language}
+                  onChange={(val) =>
+                    setForm({
+                      ...form,
+                      validationCode: {
+                        ...form.validationCode,
+                        code: val,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+        </div>
+
         {/* CODE EDITOR CARD (FIXED HEIGHT) */}
         <div className="rounded-3xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4 min-h-[500px]">
 
