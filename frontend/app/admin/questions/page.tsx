@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDsaStore } from "@/store/useDSA";
-import { Loader2, BookOpen, Layers, FileText, Plus } from "lucide-react";
+import { useAuthStore } from "@/store/useAuth";
+import { Loader2, BookOpen, Layers, FileText, Plus, Trash } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type Tab = "dsa" | "system-design" | "case-study";
 
@@ -16,17 +18,25 @@ export default function AdminContentPage() {
     questions,
     loading,
     fetchAllAdminQuestions,
+    deleteQuestion
   } = useDsaStore();
 
+  const { user, checkAuth } = useAuthStore();
+
   useEffect(() => {
+    
     if (tab === "dsa") {
       fetchAllAdminQuestions();
+      if (!user) checkAuth();
     }
   }, [tab]);
 
   const handleCreate = () => {
     router.push(`/admin/create-${tab}`);
   };
+
+  // console.log("Admin Questions Page Rendered. Current tab:", tab);
+  // console.log("Questions data:", questions);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
@@ -101,11 +111,27 @@ export default function AdminContentPage() {
               {questions.map((q: any) => (
                 <div
                   key={q._id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5"
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 cursor-pointer hover:bg-zinc-900 transition"
+                  onClick={() => router.push(`/admin/questions/dsa/${q._id}`)}
                 >
-                  <h2 className="text-xl font-semibold">
-                    {q.title}
-                  </h2>
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold">
+                      {q.title}
+                    </h2>
+
+                    {user?._id === q.addedBy._id && (
+                      <Button variant={"destructive"} className="bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+                          onClick={() => {
+                            if (confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
+                              deleteQuestion(q._id);
+                            }
+                          }}
+                      >
+                        <Trash/> Delete
+                      </Button>
+                    )}
+                  </div>
+
 
                   <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
                     {q.description}

@@ -57,7 +57,11 @@ export type DSAQuestion = {
   followUp?: string[];
   hints?: string[];
 
-  addedBy: string;
+  addedBy: {
+        _id: string;
+        name?: string;
+        email?: string;
+  } ;
 
   rating: number;
   totalRatings: number;
@@ -70,6 +74,8 @@ export type DSAQuestion = {
     language?: string;
     code?: string;
   };
+
+  
 
   createdAt?: string;
   updatedAt?: string;
@@ -211,6 +217,8 @@ export const useDsaStore = create<DsaStore>((set, get) => ({
       queryClient.invalidateQueries({ queryKey: ["dsa-admin-questions"] });
       queryClient.removeQueries({ queryKey: ["dsa-question", id] });
       queryClient.removeQueries({ queryKey: ["dsa-admin-question", id] });
+
+      get().fetchAllAdminQuestions();
 
       toast.success("Question deleted");
       return true;

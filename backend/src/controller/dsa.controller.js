@@ -33,6 +33,22 @@ export const INJECTION_MARKER = {
     php: "// USER_CODE_HERE",
 };
 
+export const LANGUAGE_EXTENSION_MAP = {
+    python: "py",
+    javascript: "js",
+    java: "java",
+    cpp: "cpp",
+    c: "c",
+    typescript: "ts",
+    go: "go",
+    rust: "rs",
+    ruby: "rb",
+    kotlin: "kt",
+    swift: "swift",
+    php: "php"
+
+}
+
 export const createDSAQuestion = async (req, res, next) => {
     try {
         const { user } = req;
@@ -113,7 +129,7 @@ export const createDSAQuestion = async (req, res, next) => {
             });
         }
 
-        console.log("coming here")
+        // console.log("coming here")
 
         if(!correctAnswer.language || !correctAnswer.code){
             return res.status(400).json({ message: "Please provide language and code for correctAnswer." });
@@ -127,7 +143,7 @@ export const createDSAQuestion = async (req, res, next) => {
             return res.status(400).json({ message: "validationType must be either 'exact' or 'custom'." });
         }
 
-        console.log("coming still")
+        // console.log("coming still")
 
         if(validationType === "custom"){
             if(!validationCode || !validationCode.language || !validationCode.code){
@@ -185,10 +201,7 @@ export const createDSAQuestion = async (req, res, next) => {
         //     stdin: batchedInput,
         //     files: [
         //         {
-        //             name:
-        //                 correctAnswer.language === "python"
-        //                     ? "main.py"
-        //                     : "main.cpp",
+        //             name: `solution.${LANGUAGE_EXTENSION_MAP[correctAnswer.language]}`,
         //             content: correctAnswer.code
         //         }
         //     ]
@@ -201,10 +214,7 @@ export const createDSAQuestion = async (req, res, next) => {
                 stdin: batchedInput,
                 files: [
                     {
-                        name:
-                            correctAnswer.language === "python"
-                                ? "main.py"
-                                : "main.cpp",
+                        name: `solution.${LANGUAGE_EXTENSION_MAP[correctAnswer.language]}`,
                         content: correctAnswer.code
                     }
                 ]
@@ -252,10 +262,7 @@ export const createDSAQuestion = async (req, res, next) => {
                     stdin: validationInput,
                     files: [
                         {
-                            name:
-                                validationCode.language === "python"
-                                    ? "main.py"
-                                    : "main.cpp",
+                            name: `validator.${LANGUAGE_EXTENSION_MAP[validationCode.language]}`,
                             content: validationCode.code
                         }
                     ]
@@ -424,20 +431,23 @@ export const addTestCases = async (req, res, next) => {
             testCases.map(tc => tc.input)
         );
 
-        const response = await axios.post(
+        let response = await axios.post(
             process.env.RAPID_URL,
             {
-                source_code: question.correctAnswer.code,
-                language_id: LANGUAGE_MAP[question.correctAnswer.language],
+                language: question.correctAnswer.language,
                 stdin: batchedInput,
-                cpu_time_limit: question.maxTime / 1000,
-                memory_limit: question.maxMemory * 1024
+                files: [
+                    {
+                        name: `solution.${LANGUAGE_EXTENSION_MAP[question.correctAnswer.language]}`,
+                        content: question.correctAnswer.code
+                    }
+                ]
             },
             {
                 headers: {
-                "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-                "x-rapidapi-host": "judge029.p.rapidapi.com",
-                "Content-Type": "application/json"
+                    "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+                    "x-rapidapi-host": "onecompiler-apis.p.rapidapi.com",
+                    "Content-Type": "application/json"
                 }
             }
         );
@@ -446,7 +456,7 @@ export const addTestCases = async (req, res, next) => {
             return res.status(500).json({ message: "Failed to validate test cases." });
         }
 
-        if (response.data.status.id !== 3) {
+        if (response.data.status!== "success") {
             return res.status(400).json({ message: "One or more test cases did not pass validation. Please check your test cases and try again.", ans: response.data });
         }
 
@@ -466,19 +476,22 @@ export const addTestCases = async (req, res, next) => {
                 }))
             });
 
-            const validatorRes = await axios.post(
+           const validatorRes = await axios.post(
                 process.env.RAPID_URL,
                 {
-                    source_code: question.validationCode.code,
-                    language_id: LANGUAGE_MAP[question.validationCode.language],
-                    stdin: JSON.stringify(validationInput),
-                    cpu_time_limit: question.maxTime / 1000,
-                    memory_limit: question.maxMemory * 1024
+                    language: question.validationCode.language,
+                    stdin: validationInput,
+                    files: [
+                        {
+                            name: `validator.${LANGUAGE_EXTENSION_MAP[question.validationCode.language]}`,
+                            content: question.validationCode.code
+                        }
+                    ]
                 },
                 {
                     headers: {
                         "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-                        "x-rapidapi-host": "judge029.p.rapidapi.com",
+                        "x-rapidapi-host": "onecompiler-apis.p.rapidapi.com",
                         "Content-Type": "application/json"
                     }
                 }
@@ -488,7 +501,7 @@ export const addTestCases = async (req, res, next) => {
                 return res.status(500).json({ message: "Failed to validate test cases with custom validator." });
             }
 
-            if (validatorRes.data.status.id !== 3) {
+            if (validatorRes.data.status !== "success") {
                 return res.status(400).json({
                     message: "validationCode failed",
                     ans: validatorRes.data
@@ -564,7 +577,7 @@ export const getDsaQuestionForAdmin = async (req, res, next) => {
             return res.status(200).json({ question: JSON.parse(cachedQuestion) });
         }
 
-        const question = await dsa.findById(id);
+        const question = await dsa.findById(id).populate("addedBy", "name email");
 
         if (!question) {
             return res.status(404).json({ message: "DSA question not found." });

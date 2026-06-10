@@ -54,7 +54,7 @@ export default function CodeEditor({
             lineNumbers: "on",
             minimap: { enabled: false },
 
-            scrollBeyondLastLine: false,
+            scrollBeyondLastLine: true,
             automaticLayout: true,
 
             // wordWrap: "on",
