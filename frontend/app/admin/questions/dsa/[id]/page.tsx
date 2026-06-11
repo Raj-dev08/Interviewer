@@ -113,7 +113,7 @@ export default function AdminQuestionPage() {
     );
   }
 
-  console.log("Admin Question Page Rendered. Question data:", question);
+  // console.log("Admin Question Page Rendered. Question data:", question);
 
   return (
     <div className="max-w-[1800px] mx-auto">
@@ -186,7 +186,15 @@ export default function AdminQuestionPage() {
             </span>
 
           </div>
-
+          <div className="my-1">
+            <p className="text-xs">
+              Created by : {question.addedBy.name} &nbsp; |
+              &nbsp;
+              <a href={`https://mailto:${question.addedBy.email}`} target="blank" className="text-blue-500 cursor-pointer hover:text-blue-400">
+                {question.addedBy.email}
+              </a>
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2 mt-4">
             {question.topics.map((t) => (
               <span
@@ -428,257 +436,261 @@ export default function AdminQuestionPage() {
 
   </div>
 
-          <div className="mt-8 border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-900/40">
+  <div className="mt-8 border border-zinc-800 rounded-2xl overflow-hidden bg-zinc-900/40">
 
-  <button
-    onClick={() => setShowTestCases(!showTestCases)}
-    className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/40 transition"
-  >
-    <div className="flex items-center gap-3">
-
-      {showTestCases ? (
-        <ChevronDown className="w-5 h-5 text-zinc-400" />
-      ) : (
-        <ChevronRight className="w-5 h-5 text-zinc-400" />
-      )}
-
-      <h2 className="text-lg font-semibold">
-        Test Cases
-      </h2>
-
-      <span className="px-2 py-0.5 text-xs rounded-full bg-zinc-800 text-zinc-400">
-        {question.testCases.length}
-      </span>
-      <span className="text-sm text-zinc-500">
-      Click to {showTestCases ? "hide" : "view"}
-    </span>
+    <div className="flex items-center justify-between">  
       
+      <button
+        onClick={() => setShowTestCases(!showTestCases)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/40 transition"
+      >
+        <div className="flex items-center gap-3">
+
+          {showTestCases ? (
+            <ChevronDown className="w-5 h-5 text-zinc-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-zinc-400" />
+          )}
+
+          <h2 className="text-lg font-semibold">
+            Test Cases
+          </h2>
+
+          <span className="px-2 py-0.5 text-xs rounded-full bg-zinc-800 text-zinc-400">
+            {question.testCases.length}
+          </span>
+          <span className="text-sm text-zinc-500">
+          Click to {showTestCases ? "hide" : "view"}
+        </span>
+          
+        </div>
+      </button>
+
+        <Button
+          size="sm"
+          onClick={(e) => {
+              e.stopPropagation();
+              setShowAddModal(true);
+          }}
+          className="bg-green-500 text-black hover:bg-green-700 cursor-pointer"
+          >
+          Add Test Case
+      </Button>
     </div>
 
-      <Button
-        size="sm"
-        onClick={(e) => {
-            e.stopPropagation();
-            setShowAddModal(true);
-        }}
-        className="bg-green-500 text-black hover:bg-green-700 cursor-pointer"
-        >
-        Add Test Case
-    </Button>
-
+      
     
-  </button>
 
-  {showAddModal && (
-  <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    {showAddModal && (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
 
-    <div className="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl">
+      <div className="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl">
 
-      <div className="p-5 border-b border-zinc-800">
+        <div className="p-5 border-b border-zinc-800">
 
-        <h2 className="text-xl font-semibold">
-          Add Test Cases
-        </h2>
+          <h2 className="text-xl font-semibold">
+            Add Test Cases
+          </h2>
 
-        <p className="text-sm text-zinc-500 mt-2">
-          Input must be valid JSON.
-        </p>
+          <p className="text-sm text-zinc-500 mt-2">
+            Input must be valid JSON.
+          </p>
 
-      </div>
-
-      <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
-
-        <div className="rounded-xl bg-black p-4 text-sm">
-
-{`Example:
-
-{
-  "nums": [2,7,11,15],
-  "target": 9
-}
-
-Output:
-[0,1]`}
         </div>
 
-        {newCases.map((tc, index) => (
-          <div
-            key={index}
-            className="border border-zinc-800 rounded-xl p-4"
-          >
+        <div className="p-5 space-y-6 max-h-[70vh] overflow-y-auto">
 
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-xl bg-black p-4 text-sm">
 
-              <h3>
-                Test Case #{index + 1}
-              </h3>
+  {`Example:
 
-              {newCases.length > 1 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    setNewCases(prev =>
-                      prev.filter((_, i) => i !== index)
-                    );
-                  }}
-                >
-                  Remove
-                </Button>
-              )}
+  {
+    "nums": [2,7,11,15],
+    "target": 9
+  }
 
-            </div>
+  Output:
+  [0,1]`}
+          </div>
 
-            <textarea
-              value={tc.input}
-              onChange={(e) => {
-                const arr = [...newCases];
-                arr[index].input = e.target.value;
-                setNewCases(arr);
-              }}
-              className="w-full h-40 bg-black rounded-lg p-3 font-mono text-sm"
-              placeholder='{"nums":[1,2,3]}'
-            />
+          {newCases.map((tc, index) => (
+            <div
+              key={index}
+              className="border border-zinc-800 rounded-xl p-4"
+            >
 
-            <textarea
-              value={tc.output}
-              onChange={(e) => {
-                const arr = [...newCases];
-                arr[index].output = e.target.value;
-                setNewCases(arr);
-              }}
-              className="w-full h-24 bg-black rounded-lg p-3 font-mono text-sm mt-3"
-              placeholder="[0,1]"
-            />
+              <div className="flex items-center justify-between mb-4">
 
-            <label className="flex items-center gap-2 mt-4">
-              <input
-                type="checkbox"
-                checked={tc.isHidden}
+                <h3>
+                  Test Case #{index + 1}
+                </h3>
+
+                {newCases.length > 1 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setNewCases(prev =>
+                        prev.filter((_, i) => i !== index)
+                      );
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+
+              </div>
+
+              <textarea
+                value={tc.input}
                 onChange={(e) => {
                   const arr = [...newCases];
-                  arr[index].isHidden = e.target.checked;
+                  arr[index].input = e.target.value;
                   setNewCases(arr);
                 }}
+                className="w-full h-40 bg-black rounded-lg p-3 font-mono text-sm"
+                placeholder='{"nums":[1,2,3]}'
               />
-              Hidden testcase
-            </label>
 
-          </div>
-        ))}
+              <textarea
+                value={tc.output}
+                onChange={(e) => {
+                  const arr = [...newCases];
+                  arr[index].output = e.target.value;
+                  setNewCases(arr);
+                }}
+                className="w-full h-24 bg-black rounded-lg p-3 font-mono text-sm mt-3"
+                placeholder="[0,1]"
+              />
 
-        <Button
-          variant="outline"
-          onClick={() => {
-            setNewCases(prev => [
-              ...prev,
-              {
-                input: "",
-                output: "",
-                isHidden: false
-              }
-            ]);
-          }}
-        >
-          + Add Another
-        </Button>
+              <label className="flex items-center gap-2 mt-4">
+                <input
+                  type="checkbox"
+                  checked={tc.isHidden}
+                  onChange={(e) => {
+                    const arr = [...newCases];
+                    arr[index].isHidden = e.target.checked;
+                    setNewCases(arr);
+                  }}
+                />
+                Hidden testcase
+              </label>
 
-      </div>
+            </div>
+          ))}
 
-      <div className="p-5 border-t border-zinc-800 flex justify-end gap-3">
-
-        <Button
-          variant="outline"
-          onClick={() => setShowAddModal(false)}
-        >
-          Cancel
-        </Button>
-
-        <Button
-            disabled={loading}
-          onClick={() => handleSubmit(question)}
-          className="bg-green-500 text-black hover:bg-green-700 cursor-pointer"
-        >
-          Save Test Cases
-        </Button>
-
-      </div>
-
-    </div>
-
-  </div>
-)}
-
-  {showTestCases && (
-    <div className="border-t border-zinc-800">
-
-      <div className="space-y-4 p-5">
-
-        {question.testCases.map((tc, i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden"
+          <Button
+            variant="outline"
+            onClick={() => {
+              setNewCases(prev => [
+                ...prev,
+                {
+                  input: "",
+                  output: "",
+                  isHidden: false
+                }
+              ]);
+            }}
           >
+            + Add Another
+          </Button>
 
-            {/* HEADER */}
+        </div>
 
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900">
+        <div className="p-5 border-t border-zinc-800 flex justify-end gap-3">
 
-              <div className="font-medium">
-                Test Case #{i + 1}
-              </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowAddModal(false)}
+          >
+            Cancel
+          </Button>
 
-              {tc.isHidden ? (
-                <div className="flex items-center gap-2 text-yellow-500 text-sm">
-                  <EyeOff className="w-4 h-4" />
-                  Hidden
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-green-500 text-sm">
-                  <Eye className="w-4 h-4" />
-                  Public
-                </div>
-              )}
+          <Button
+              disabled={loading}
+            onClick={() => handleSubmit(question)}
+            className="bg-green-500 text-black hover:bg-green-700 cursor-pointer"
+          >
+            Save Test Cases
+          </Button>
 
-            </div>
-
-            {/* BODY */}
-
-            <div className="grid lg:grid-cols-2 gap-4 p-4">
-
-              <div>
-                <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
-                  Input
-                </div>
-
-                <pre className="bg-black rounded-lg p-4 overflow-auto text-sm text-zinc-300">
-{typeof tc.input === "string"
-  ? tc.input
-  : JSON.stringify(tc.input, null, 2)}
-                </pre>
-              </div>
-
-              <div>
-                <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
-                  Expected Output
-                </div>
-
-                <pre className="bg-black rounded-lg p-4 overflow-auto text-sm text-zinc-300">
-{tc.output}
-                </pre>
-              </div>
-
-            </div>
-
-          </div>
-        ))}
+        </div>
 
       </div>
 
     </div>
   )}
 
-</div>
+    {showTestCases && (
+      <div className="border-t border-zinc-800">
+
+        <div className="space-y-4 p-5">
+
+          {question.testCases.map((tc, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden"
+            >
+
+              {/* HEADER */}
+
+              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900">
+
+                <div className="font-medium">
+                  Test Case #{i + 1}
+                </div>
+
+                {tc.isHidden ? (
+                  <div className="flex items-center gap-2 text-yellow-500 text-sm">
+                    <EyeOff className="w-4 h-4" />
+                    Hidden
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-green-500 text-sm">
+                    <Eye className="w-4 h-4" />
+                    Public
+                  </div>
+                )}
+
+              </div>
+
+              {/* BODY */}
+
+              <div className="grid lg:grid-cols-2 gap-4 p-4">
+
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
+                    Input
+                  </div>
+
+                  <pre className="bg-black rounded-lg p-4 overflow-auto text-sm text-zinc-300">
+  {typeof tc.input === "string"
+    ? tc.input
+    : JSON.stringify(tc.input, null, 2)}
+                  </pre>
+                </div>
+
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">
+                    Expected Output
+                  </div>
+
+                  <pre className="bg-black rounded-lg p-4 overflow-auto text-sm text-zinc-300">
+  {tc.output}
+                  </pre>
+                </div>
+
+              </div>
+
+            </div>
+          ))}
+
+        </div>
+
+      </div>
+    )}
+
+  </div>
 </div>
   );
 }

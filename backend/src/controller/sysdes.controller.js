@@ -66,8 +66,6 @@ export const createSystemDesignQuestion = async (req, res, next) => {
             evaluation
         });
 
-        await redis.set(`systemDesignQuestion:${newQuestion._id}`, JSON.stringify(newQuestion), "EX", 60 * 60 ); // Cache for 1 hour
-
         return res.status(201).json({ message: "System design question created successfully.", question: newQuestion });
     } catch (error) {
         next(error);
@@ -92,7 +90,7 @@ export const getSystemDesignQuestionById = async (req, res, next) => {
             return res.status(200).json({ question: JSON.parse(cachedQuestion), source: "cache" });
         }
 
-        const question = await SystemDesign.findById(id);
+        const question = await SystemDesign.findById(id).populate("addedBy", "name email");
         if (!question) {
             return res.status(404).json({ message: "Question not found." });
         }
@@ -130,6 +128,7 @@ export const deleteSystemDesignQuestion = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { user } = req;
+        // console.log(id)
 
         if (user.isDisabled){
             return res.status(403).json({ message: "Your account has been disabled. Please contact support for more information." });

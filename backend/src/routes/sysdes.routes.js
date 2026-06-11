@@ -6,6 +6,6 @@ const router = Router()
 router.post("/create",createSystemDesignQuestion)
 router.get("/owner/getAll",getAllSystemDesignQuestions)
 router.get("/:id",getSystemDesignQuestionById)
-router.delete("/delete",deleteSystemDesignQuestion)
+router.delete("/delete/:id",deleteSystemDesignQuestion)
 
 export default router

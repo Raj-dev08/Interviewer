@@ -27,6 +27,7 @@ export default function AdminRoute({
 
     checkAuth();
   }, []);
+  
 
   useEffect(() => {
 
@@ -46,11 +47,11 @@ export default function AdminRoute({
     }
 
   }, [user, isCheckingAuth]);
-
+  // console.log("auth",isCheckingAuth)
   if (isCheckingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        Loading...
+        Loading... (if it takes too long please hit refresh)
       </div>
     );
   }

@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDsaStore } from "@/store/useDSA";
 import { useAuthStore } from "@/store/useAuth";
-import { Loader2, BookOpen, Layers, FileText, Plus, Trash } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, BookOpen, Layers, FileText, Plus } from "lucide-react";
+import DsaQuestionCard from "@/components/DsaQuestionCard";
+import SystemDesignQuestionCard from "@/components/SystemDesignQuestionCard";
+import { useSystemDesignStore } from "@/store/useSysDes";
 
 type Tab = "dsa" | "system-design" | "case-study";
 
@@ -21,13 +23,23 @@ export default function AdminContentPage() {
     deleteQuestion
   } = useDsaStore();
 
+  const { 
+    questions: systemDesignQuestions , 
+    loading: systemDesignLoading, 
+    fetchAllAdminQuestions: fetchAllSystemDesignQuestions,
+    deleteQuestion: deleteSystemDesignQuestion
+  } = useSystemDesignStore()
+
   const { user, checkAuth } = useAuthStore();
 
   useEffect(() => {
-    
+    if (!user) checkAuth();
     if (tab === "dsa") {
       fetchAllAdminQuestions();
-      if (!user) checkAuth();
+      
+    }
+    if (tab === "system-design"){
+      fetchAllSystemDesignQuestions();
     }
   }, [tab]);
 
@@ -37,6 +49,8 @@ export default function AdminContentPage() {
 
   // console.log("Admin Questions Page Rendered. Current tab:", tab);
   // console.log("Questions data:", questions);
+  // console.log("System Design Questions data:", systemDesignQuestions);
+
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
@@ -109,44 +123,12 @@ export default function AdminContentPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               {questions.map((q: any) => (
-                <div
+                <DsaQuestionCard
                   key={q._id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 cursor-pointer hover:bg-zinc-900 transition"
-                  onClick={() => router.push(`/admin/questions/dsa/${q._id}`)}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">
-                      {q.title}
-                    </h2>
-
-                    {user?._id === q.addedBy._id && (
-                      <Button variant={"destructive"} className="bg-red-500 text-white hover:bg-red-600 cursor-pointer"
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
-                              deleteQuestion(q._id);
-                            }
-                          }}
-                      >
-                        <Trash/> Delete
-                      </Button>
-                    )}
-                  </div>
-
-
-                  <p className="mt-2 text-sm text-zinc-400 line-clamp-2">
-                    {q.description}
-                  </p>
-
-                  <div className="mt-4 flex gap-2">
-                    <span className="text-xs px-3 py-1 rounded-full bg-zinc-800">
-                      {q.difficulty}
-                    </span>
-
-                    <span className="text-xs px-3 py-1 rounded-full bg-zinc-800">
-                      {q.duration} min
-                    </span>
-                  </div>
-                </div>
+                  question={q}
+                  user={user}
+                  deleteQuestion={deleteQuestion}
+                />
               ))}
             </div>
 
@@ -160,8 +142,33 @@ export default function AdminContentPage() {
 
         {/* PLACEHOLDERS */}
         {tab === "system-design" && (
-          <div className="text-zinc-400 text-sm">
-            System Design module not connected yet.
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-3xl font-bold">
+                System Design Questions
+              </h1>
+
+              {systemDesignLoading && (
+                <Loader2 className="animate-spin" />
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {systemDesignQuestions.map((q) => (
+                <SystemDesignQuestionCard
+                  key={q._id}
+                  question={q}
+                  user={user}
+                  deleteQuestion={deleteSystemDesignQuestion}
+                />
+              ))}
+            </div>
+
+            {systemDesignQuestions.length === 0 && !systemDesignLoading && (
+              <div className="text-zinc-500 text-sm mt-10">
+                No system design questions found.
+              </div>
+            )}
           </div>
         )}
 
