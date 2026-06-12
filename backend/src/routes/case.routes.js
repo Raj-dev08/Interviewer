@@ -11,6 +11,6 @@ const router = Router();
 router.post("/create", createCaseStudy);
 router.get("/:id", getCaseStudyById);
 router.get("/owner/getAll", getAllCaseStudies);
-router.delete("/delete", deleteCaseStudy);
+router.delete("/delete/:id", deleteCaseStudy);
 
 export default router;

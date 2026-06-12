@@ -1433,6 +1433,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Data:
                 ${question.data.map(d => `${d.label}: ${d.value}`).join("\n")}
 
+                Sample solution:
+                ${question.sampleSolution.answer}
+
+                Sample solution keypoints:
+                ${question.sampleSolution.keypoints.join("\n")}
+
+
                 Constraints:
                 ${question.constraints?.join("\n")}
 

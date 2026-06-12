@@ -92,12 +92,12 @@ export const createCaseStudy = async (req, res, next) => {
             addedBy: user._id
         });
 
-        await redis.set(
-            `caseStudy:${newCase._id}`,
-            JSON.stringify(newCase),
-            "EX",
-            60 * 60
-        );
+        // await redis.set(
+        //     `caseStudy:${newCase._id}`,
+        //     JSON.stringify(newCase),
+        //     "EX",
+        //     60 * 60
+        // );
 
         return res.status(201).json({
             message: "Case study created successfully.",
@@ -129,7 +129,7 @@ export const getCaseStudyById = async (req, res, next) => {
             });
         }
 
-        const CaseStudy = await caseStudy.findById(id);
+        const CaseStudy = await caseStudy.findById(id).populate("addedBy", "name email");
         if (!CaseStudy) {
             return res.status(404).json({ message: "Case study not found." });
         }

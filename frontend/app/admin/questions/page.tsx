@@ -7,14 +7,16 @@ import { useAuthStore } from "@/store/useAuth";
 import { Loader2, BookOpen, Layers, FileText, Plus } from "lucide-react";
 import DsaQuestionCard from "@/components/DsaQuestionCard";
 import SystemDesignQuestionCard from "@/components/SystemDesignQuestionCard";
+import CaseStudyQuestionCard from "@/components/CaseStudyQuestionCard";
 import { useSystemDesignStore } from "@/store/useSysDes";
+import { useCaseStudyStore } from "@/store/useCaseStudy";
 
 type Tab = "dsa" | "system-design" | "case-study";
 
 export default function AdminContentPage() {
   const router = useRouter();
 
-  const [tab, setTab] = useState<Tab>("dsa");
+  const [tab, setTab] = useState<Tab>(localStorage.getItem("tab") as Tab || "dsa");
 
   const {
     questions,
@@ -30,6 +32,13 @@ export default function AdminContentPage() {
     deleteQuestion: deleteSystemDesignQuestion
   } = useSystemDesignStore()
 
+  const { 
+    caseStudies, 
+    loading: caseStudyLoading, 
+    fetchAllCaseStudies,
+    deleteCaseStudy
+  } = useCaseStudyStore();
+
   const { user, checkAuth } = useAuthStore();
 
   useEffect(() => {
@@ -41,6 +50,9 @@ export default function AdminContentPage() {
     if (tab === "system-design"){
       fetchAllSystemDesignQuestions();
     }
+    if (tab === "case-study"){
+      fetchAllCaseStudies();
+    }
   }, [tab]);
 
   const handleCreate = () => {
@@ -50,7 +62,7 @@ export default function AdminContentPage() {
   // console.log("Admin Questions Page Rendered. Current tab:", tab);
   // console.log("Questions data:", questions);
   // console.log("System Design Questions data:", systemDesignQuestions);
-
+  // console.log("case study",caseStudies )
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6">
@@ -62,7 +74,10 @@ export default function AdminContentPage() {
           <div className="flex gap-3">
 
             <button
-              onClick={() => setTab("dsa")}
+              onClick={() => { 
+                setTab("dsa");
+                localStorage.setItem("tab", "dsa");
+              }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
                 tab === "dsa"
                   ? "border-white text-white"
@@ -74,7 +89,10 @@ export default function AdminContentPage() {
             </button>
 
             <button
-              onClick={() => setTab("system-design")}
+              onClick={() => { 
+                setTab("system-design");
+                localStorage.setItem("tab", "system-design");
+              }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
                 tab === "system-design"
                   ? "border-white text-white"
@@ -86,7 +104,10 @@ export default function AdminContentPage() {
             </button>
 
             <button
-              onClick={() => setTab("case-study")}
+              onClick={() => {
+                setTab("case-study")
+                localStorage.setItem("tab", "case-study");
+              }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition ${
                 tab === "case-study"
                   ? "border-white text-white"
@@ -173,8 +194,33 @@ export default function AdminContentPage() {
         )}
 
         {tab === "case-study" && (
-          <div className="text-zinc-400 text-sm">
-            Case Study module not connected yet.
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-3xl font-bold">
+                Case Study Questions
+              </h1>
+
+              {caseStudyLoading && (
+                <Loader2 className="animate-spin" />
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {caseStudies.map((q) => (
+                <CaseStudyQuestionCard
+                  key={q._id}
+                  caseStudy={q}
+                  user={user}
+                  deleteCaseStudy={deleteCaseStudy}
+                />
+              ))}
+            </div>
+
+            {caseStudies.length === 0 && !caseStudyLoading && (
+              <div className="text-zinc-500 text-sm mt-10">
+                No case study questions found.
+              </div>
+            )}
           </div>
         )}
 
