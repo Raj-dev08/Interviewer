@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import {
   Home,
-  History,
+  Logs,
   FileQuestion,
   User,
   Crown ,
@@ -56,19 +56,19 @@ export default function MobileBottomBar() {
               />
             </Link>
 
-            <Link href="/client/previous">
+            <Link href="/client/interviews">
               <BottomItem
-                icon={<History size={20} />}
-                active={pathname.startsWith("/client/previous")}
+                icon={<Logs size={20} />}
+                active={pathname.startsWith("/client/interviews")}
               />
             </Link>
 
-            <Link href="/client/questions">
+            {/* <Link href="/client/questions">
               <BottomItem
                 icon={<FileQuestion size={20} />}
                 active={pathname.startsWith("/client/questions")}
               />
-            </Link>
+            </Link> */}
 
             <Link href="/client/profile">
               <BottomItem

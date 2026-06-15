@@ -60,7 +60,7 @@ app.use("/api/notification",protectRoute,notificationRoutes)
 app.use("/api/interviewflow",protectRoute,interviewFlowRoutes)
 app.use("/api/submission",protectRoute,submissionRoutes)
 app.use("/api/dsa-chat",protectRoute,dsaChatRoutes)
-app.use("/api/feedback",protectRoute,dsaChatRoutes)
+app.use("/api/feedback",protectRoute,feedbackRoutes)
 
 
 app.get("/api/health", (req, res) => {

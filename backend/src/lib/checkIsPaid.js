@@ -21,7 +21,7 @@ export const verifyAndSyncSubscription = async (userId) => {
                 FOR UPDATE
             `);
 
-            const pgSub = result[0] || null;
+            const pgSub = result.rows[0] || null;
 
             const user = await User.findById(userId).select("currentSubscription isPaid");
 

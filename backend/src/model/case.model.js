@@ -10,7 +10,7 @@ const caseSchema = new mongoose.Schema(
             type: String,
             required: true
         },
-        difficulity:{
+        difficulty:{
             type: String,
             enum: ["easy","medium","hard"],
             required: true

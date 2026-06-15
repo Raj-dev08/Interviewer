@@ -7,10 +7,10 @@ import {
   User,
   CreditCard,
   FileQuestion,
-  History,
   LayoutDashboard,
   Users,
   Crown,
+  Logs,
 } from "lucide-react";
 
 import { useAuthStore } from "@/store/useAuth";
@@ -49,19 +49,11 @@ export default function DashboardSidebar() {
               />
             </Link>
 
-            <Link href="/client/previous">
+            <Link href="/client/interviews">
               <SidebarItem
-                icon={<History size={18} />}
-                label="Previous Interviews"
-                active={pathname.startsWith("/client/previous")}
-              />
-            </Link>
-
-            <Link href="/client/questions">
-              <SidebarItem
-                icon={<FileQuestion size={18} />}
-                label="Questions"
-                active={pathname.startsWith("/client/questions")}
+                icon={<Logs size={18} />}
+                label="Interviews"
+                active={pathname.startsWith("/client/interviews")}
               />
             </Link>
 

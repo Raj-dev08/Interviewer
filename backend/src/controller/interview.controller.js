@@ -1,7 +1,7 @@
 import Interview from "../model/interview.model.js";
 import { redis } from "../lib/redis.js";
 import { interviewQueue } from "../lib/interview.queue.js";
-
+import mongoose from "mongoose";
 
 export const createInterview = async (req, res, next) => {
     try {
@@ -17,8 +17,12 @@ export const createInterview = async (req, res, next) => {
             return res.status(400).json({ message: "Invalid interview type." });
         }
 
+        const randomUUID = new mongoose.Types.ObjectId()
+
+
         await interviewQueue.add("createInterview", {
             userId: user._id,
+            requestId: randomUUID,
             type
         })
 
@@ -58,7 +62,7 @@ export const getInterviewById = async (req, res, next) => {
             return res.status(404).json({ message: "Interview not found or not scheduled"})
         }
 
-        await redis.set(redisKey, JSON.stringify(interview.toObject()), "EX", 60 * 60)
+        await redis.set(redisKey, JSON.stringify(interview), "EX", 60 * 60)
 
         return res.status(200).json({ interview })
     } catch (error) {
@@ -84,7 +88,7 @@ export const getAllInterviews = async (req, res, next) => {
 
         const interviews = await Interview.find({ userId: user._id }).select("type status duration")
 
-        await redis.set(redisKey, JSON.stringify(interviews.toObject()), "EX", 60 * 60)
+        await redis.set(redisKey, JSON.stringify(interviews), "EX", 60 * 60)
 
         return res.status(200).json({ interviews })
     } catch (error) {
@@ -116,6 +120,9 @@ export const cancelInterview = async (req, res, next) => {
         if (!updatedInterview){
             return res.status(404).json({ message: "Interview not found or not scheduled"})
         }
+
+        await redis.del(`interviewsFor:${user._id}`)
+        await redis.del(`interview:${user._id}:${id}`)
 
         return res.status(200).json({ message: "Interview cancelled successfully"})
     } catch (error) {

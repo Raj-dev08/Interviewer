@@ -102,7 +102,7 @@ export const validateInterviewQuestionContext = async ({
 const interviewWorker = new Worker("interview", async (job) => {
     try {
         if (job.name === "createInterview"){
-            const { userId, type } = job.data;
+            const { userId, type, requestId } = job.data;
 
             const user = await User.findById(userId);
 
@@ -136,6 +136,24 @@ const interviewWorker = new Worker("interview", async (job) => {
                 }
             }
 
+            const totalDSAEasyCount = await dsa.countDocuments({ difficulty: "easy" });
+            const totalDSAMediumCount = await dsa.countDocuments({ difficulty: "medium" });
+            const totalDSADifficultCount = await dsa.countDocuments({ difficulty: "hard" });
+
+            const totalSysDesEasyCount = await SystemDesign.countDocuments({ difficulty: "easy" });
+            const totalSysDesMediumCount = await SystemDesign.countDocuments({ difficulty: "medium" });
+            const totalSysDesDifficultCount = await SystemDesign.countDocuments({ difficulty: "hard" });
+
+            const totalCaseEasyCount = await caseStudy.countDocuments({ difficulty: "easy" });
+            const totalCaseMediumCount = await caseStudy.countDocuments({ difficulty: "medium" });
+            const totalCaseDifficultCount = await caseStudy.countDocuments({ difficulty: "hard" });
+
+
+            // console.log("dsa",totalDSAEasyCount,totalDSAMediumCount,totalDSADifficultCount)
+            // console.log("sys",totalSysDesEasyCount, totalSysDesMediumCount, totalSysDesDifficultCount)
+            // console.log("case",totalCaseEasyCount, totalCaseMediumCount, totalCaseDifficultCount)
+
+
             const combos = [
                 {
                     "easy":3,
@@ -155,7 +173,194 @@ const interviewWorker = new Worker("interview", async (job) => {
                 },
             ]
 
-            const selectedCombo = combos[Math.floor(Math.random() * combos.length)];
+            const mixedCombos = [
+                {
+                    dsa: { easy: 1, medium: 1 },
+                    sysDes: { easy: 1 }
+                },
+                {
+                    dsa: { medium: 1 },
+                    sysDes: { medium: 1 }
+                },
+                {
+                    dsa: { easy: 1 },
+                    sysDes: { hard: 1 }
+                },
+                {
+                    dsa: { easy: 1 },
+                    sysDes: { medium: 1 }
+                },
+                {
+                    dsa: { easy: 2 },
+                    sysDes: { easy: 1 }
+                },
+                {
+                    dsa: { easy: 1, hard: 1 },
+                    sysDes: { hard: 1 }
+                },
+                {
+                    dsa: { medium: 1, hard: 1 },
+                    sysDes: { medium: 1 }
+                },
+
+            ]
+
+            let selectedCombo;
+
+            function isValidMixedCombo(combo) {
+                if (combo.dsa){
+                    if(combo.dsa.easy && combo.dsa.easy > totalDSAEasyCount){
+                        return false;
+                    }
+                    if(combo.dsa.medium && combo.dsa.medium > totalDSAMediumCount){
+                        return false
+                    }
+                    if (combo.dsa.hard && combo.dsa.hard > totalDSADifficultCount){
+                        return false
+                    }
+                } if (combo.sysDes){
+                    if (combo.sysDes.easy && combo.sysDes.easy > totalSysDesEasyCount){
+                        return false
+                    }
+                    if (combo.sysDes.medium && combo.sysDes.medium > totalSysDesMediumCount){
+                        return false
+                    }
+                    if (combo.sysDes.hard && combo.sysDes.hard > totalSysDesDifficultCount){
+                        return false
+                    }
+                }
+                return true
+   
+            }
+
+            function isValidCombo(combo) {
+                let easyCount;
+                let mediumCount;
+                let hardCount;
+
+                if (type === "dsa-only") {
+                    easyCount = totalDSAEasyCount;
+                    mediumCount = totalDSAMediumCount;
+                    hardCount = totalDSADifficultCount;
+                }
+                else if (type === "system_design") {
+                    easyCount = totalSysDesEasyCount;
+                    mediumCount = totalSysDesMediumCount;
+                    hardCount = totalSysDesDifficultCount;
+                }
+                else if (type === "case") {
+                    easyCount = totalCaseEasyCount;
+                    mediumCount = totalCaseMediumCount;
+                    hardCount = totalCaseDifficultCount;
+                }
+
+                if (combo.easy && combo.easy > easyCount) {
+                    return false;
+                }
+
+                if (combo.medium && combo.medium > mediumCount) {
+                    return false;
+                }
+
+                if (combo.hard && combo.hard > hardCount) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            for (let index = 0; index < Math.max(combos.length, mixedCombos.length); index++) {
+                let randomSelectedCombo
+                if (type == "mixed"){
+                    randomSelectedCombo = mixedCombos[Math.floor(Math.random() * mixedCombos.length)]
+
+                    if (isValidMixedCombo(randomSelectedCombo)){
+                        selectedCombo = randomSelectedCombo
+                        break
+                    }
+                }else{
+                    randomSelectedCombo = combos[Math.floor(Math.random() * combos.length)]
+                    
+                    if ( isValidCombo(randomSelectedCombo) ){
+                        selectedCombo = randomSelectedCombo
+                        break
+                    }
+                }
+                
+            }
+
+            // console.log(selectedCombo)
+
+            if(!selectedCombo){
+                if (type == "mixed"){
+                    let selectedMixedCombo = {};
+
+                    if (totalDSAEasyCount ||totalDSAMediumCount ||totalDSADifficultCount) {
+                        selectedMixedCombo.dsa = {};
+
+                        if (totalDSAEasyCount > 0)
+                            selectedMixedCombo.dsa.easy = 1;
+                        else if (totalDSAMediumCount > 0)
+                            selectedMixedCombo.dsa.medium = 1;
+                        else if (totalDSADifficultCount > 0)
+                            selectedMixedCombo.dsa.hard = 1;
+                    }
+
+                    if (totalSysDesEasyCount ||totalSysDesMediumCount ||totalSysDesDifficultCount) {
+                        selectedMixedCombo.sysDes = {};
+
+                        if (totalSysDesEasyCount > 0)
+                            selectedMixedCombo.sysDes.easy = 1;
+                        else if (totalSysDesMediumCount > 0)
+                            selectedMixedCombo.sysDes.medium = 1;
+                        else if (totalSysDesDifficultCount > 0)
+                            selectedMixedCombo.sysDes.hard = 1;
+                    }
+
+                    selectedCombo = selectedMixedCombo
+                }
+                else {
+                    let fallbackCombo = {};
+
+                    let easyCount;
+                    let mediumCount;
+                    let hardCount;
+
+                    if (type === "dsa-only") {
+                        easyCount = totalDSAEasyCount;
+                        mediumCount = totalDSAMediumCount;
+                        hardCount = totalDSADifficultCount;
+                    }
+                    else if (type === "system_design") {
+                        easyCount = totalSysDesEasyCount;
+                        mediumCount = totalSysDesMediumCount;
+                        hardCount = totalSysDesDifficultCount;
+                    }
+                    else if (type === "case") {
+                        easyCount = totalCaseEasyCount;
+                        mediumCount = totalCaseMediumCount;
+                        hardCount = totalCaseDifficultCount;
+                    }
+
+
+                    if (easyCount > 0) {
+                        fallbackCombo.easy = 1;
+                    }
+
+                    if (mediumCount > 0) {
+                        fallbackCombo.medium = 1;
+                    }
+
+                    if (hardCount > 0) {
+                        fallbackCombo.hard = 1;
+                    }
+
+                    selectedCombo = fallbackCombo;
+                }
+            }
+
+            // console.log(selectedCombo)
+
 
             let selectedQuestions = {
                 case:[],
@@ -182,37 +387,48 @@ const interviewWorker = new Worker("interview", async (job) => {
                     duration += totalDuration
                 }
                 else if ( type === "mixed"){
-                    const { ids, totalDuration } = await getRandomQuestion(dsa, key, completedQuestions.dsa, val)
-                    selectedQuestions.dsa = [...(selectedQuestions.dsa || [] ), ...ids ]
-                    duration += totalDuration
+                    if (selectedCombo.dsa) {
+                        for (const [difficulty, count] of Object.entries(selectedCombo.dsa)) {
+
+                            const { ids, totalDuration } =
+                                await getRandomQuestion(
+                                    dsa,
+                                    difficulty,
+                                    completedQuestions.dsa,
+                                    count
+                                );
+
+                            selectedQuestions.dsa.push(...ids);
+                            duration += totalDuration;
+                        }
+                    }
+
+                    if (selectedCombo.sysDes) {
+                        for (const [difficulty, count] of Object.entries(selectedCombo.sysDes)) {
+
+                            const { ids, totalDuration } =
+                                await getRandomQuestion(
+                                    SystemDesign,
+                                    difficulty,
+                                    completedQuestions.system_design,
+                                    count
+                                );
+
+                            selectedQuestions.sysDes.push(...ids);
+                            duration += totalDuration;
+                        }
+                    }
 
                 }
 
             }
 
-            if (type === "mixed"){
-                const random = Math.random()
-
-                if (random <= 0.33 ){
-                    const { ids, totalDuration } = await getRandomQuestion(SystemDesign,"easy",completedQuestions.system_design,1)
-                    selectedQuestions.sysDes = [ ...(selectedQuestions.sysDes || []), ...ids ]
-                    duration += totalDuration
-                } 
-                else if ( random <= 0.66 ){
-                    const { ids, totalDuration } = await getRandomQuestion(SystemDesign,"medium",completedQuestions.system_design,1)
-                    selectedQuestions.sysDes = [ ...(selectedQuestions.sysDes || []), ...ids ]
-                    duration += totalDuration
-                }
-                else{
-                    const { ids, totalDuration } = await getRandomQuestion(SystemDesign,"hard",completedQuestions.system_design,1)
-                    selectedQuestions.sysDes = [ ...(selectedQuestions.sysDes || []), ...ids ]
-                    duration += totalDuration
-                }
-            }
 
             selectedQuestions.dsa = [...new Set(selectedQuestions.dsa.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id))
             selectedQuestions.sysDes = [...new Set(selectedQuestions.sysDes.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id))
             selectedQuestions.case = [...new Set(selectedQuestions.case.map(id => id.toString()))].map(id => new mongoose.Types.ObjectId(id))
+
+            // console.log(selectedQuestions)
 
             if (
                 !selectedQuestions.case.length &&
@@ -221,12 +437,26 @@ const interviewWorker = new Worker("interview", async (job) => {
             ) {
                 throw new Error("Failed to generate interview");
             }
-            const newInterview = await Interview.create({ //No need for status that is default
-                userId,
-                type,
-                questions: selectedQuestions,
-                duration
-            })
+
+            // console.log(selectedQuestions, requestId)
+
+            const newInterview = await Interview.findOneAndUpdate(
+                { _id: requestId },
+                {
+                    $setOnInsert: {
+                        _id: requestId,
+                        userId,
+                        type,
+                        questions: selectedQuestions,
+                        duration
+                    }
+                },
+                {
+                    new: true,
+                    upsert: true
+                }
+            );
+
 
             const notification = await Notification.create({
                 userId,
@@ -237,6 +467,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                     interviewId: newInterview._id
                 }
             })
+
+            await redis.del(`interviewsFor:${userId}`)
+            await redis.del(`interview:${userId}:${newInterview._id}`)
 
             const redisKey = `notificationsFor:${user._id}`
 

@@ -65,9 +65,10 @@ interviewShchema.pre("validate", function (next) {
         return next(new Error("System design interview must have only system design questions"))
     }
 
-    if (type === "mixed" && (!questions.dsa || questions.dsa.length === 0  || !questions.sysDes || questions.sysDes.length === 0 || questions.case || questions.case.length > 0 )){
+    if (type === "mixed" && (!questions.dsa || questions.dsa.length === 0  || !questions.sysDes || questions.sysDes.length === 0)){
         return next(new Error("Mixed interview must have both dsa and system design questions"))
     }
+    next()
 })
 
 const Interview = mongoose.model("Interview",interviewShchema)
