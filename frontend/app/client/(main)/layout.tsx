@@ -9,6 +9,7 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
+
   return (
     <ProtectedRoute>
       <div className="flex min-h-screen bg-zinc-950 text-white">

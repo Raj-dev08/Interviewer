@@ -21,10 +21,12 @@ export const getNotifications = async (req, res, next) => {
 
         const notifications = await Notification.find({ userId: user._id }).sort({ createdAt: -1 });
 
-        await redis.lpush(
-            redisKey,
-            ...notifications.map(n => JSON.stringify(n)).reverse()
-        );
+        if(notifications && notifications.length > 0 ) {
+            await redis.lpush(
+                redisKey,
+                ...notifications.map(n => JSON.stringify(n)).reverse()
+            );
+        }
 
         await redis.expire(redisKey, 60 * 60)
 
@@ -50,13 +52,15 @@ export const removeNotifications = async (req, res, next) => {
 
         const notification = await Notification.findOneAndDelete({ _id: id, userId: user._id })
 
-        if(notification){
-            return res.status(200).json({ message: "Notification removed successfully"})
+        if(!notification){
+            return res.status(404).json({ message: "Notification not found"})
         }
 
         await redis.del(`notificationsFor:${user._id}`) // can do remove but document matching isnt reliable
 
-        return res.status(404).json({ message: "Notification not found"})
+        return res.status(200).json({
+            message: "Notification removed successfully"
+        })
     } catch (error) {
         next(error)
     }
@@ -81,11 +85,32 @@ export const readNotifications = async (req, res, next) => {
             { $set: { read: true } }
         )
 
-        io.to(user._id.toString()).emit("notifications_read", notifications )
+        if (!notifications){
+            return res.status(404).json({ message: "Notifications not found"})
+        }
 
         await redis.del(`notificationsFor:${user._id}`)
 
-        return res.status(200).json({ message: "Notifications marked as read successfully"})
+        return res.status(200).json({ message: "Notifications marked as read successfully" })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getUnreadNotificationCount = async (req, res, next) => {
+    try {
+        const { user } = req
+
+        if (user.isDisabled){
+            return res.status(403).json({ message: "User is disabled"})
+        }
+
+        const unreadMessageCount = await Notification.countDocuments({
+            userId: user._id,
+            read: false
+        })
+
+        return res.status(200).json({ unreadMessageCount })
     } catch (error) {
         next(error)
     }

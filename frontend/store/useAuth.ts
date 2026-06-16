@@ -260,8 +260,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     socket.connect();
 
     set({ socket: socket });
-
-    
   },
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();

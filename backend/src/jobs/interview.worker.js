@@ -462,7 +462,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 userId,
                 title: "Interview created",
                 message: `Interview creation completed successfully for ${type} interview`,
-                link: `/interview/${newInterview._id}`,//wip
+                link: `/interviews/${newInterview._id}`,//wip
                 meta:{
                     interviewId: newInterview._id
                 }
@@ -473,13 +473,14 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const redisKey = `notificationsFor:${user._id}`
 
-            await redis.lpush(redisKey,JSON.stringify(notification))
+            await redis.del(redisKey)
 
             await emitSocketEvent(userId.toString(),"interview_created",{
-                interview: newInterview
+                interview: newInterview,
+                message: `Interview created successfully`
             })
 
-            await emitSocketEvent(userId.toString(),"interview_created",{
+            await emitSocketEvent(userId.toString(),"notifications_created",{
                 notification
             })
         }  

@@ -45,7 +45,7 @@ const interviewTypes = [
     value: "mixed",
     title: "Mixed",
     description:
-      "A combination of DSA, System Design and Case Study questions.",
+      "A combination of DSA and System Design questions.",
     icon: Sparkles,
   },
 ] as const;

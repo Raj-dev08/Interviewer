@@ -4,6 +4,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import { useAuthStore } from "./useAuth";
 
 export type Interview = {
   _id: string;
@@ -22,9 +23,11 @@ type InterviewStore = {
   getAllInterviews: () => Promise<void>;
   cancelInterview: (id: string) => Promise<boolean>;
   clearInterview: () => void;
+
+  subscribetoInterviews: () => void;
 };
 
-export const useInterviewStore = create<InterviewStore>((set) => ({
+export const useInterviewStore = create<InterviewStore>((set,get) => ({
   interview: null,
   interviews: [],
   loading: false,
@@ -104,6 +107,20 @@ export const useInterviewStore = create<InterviewStore>((set) => ({
     }
   },
 
+  subscribetoInterviews: () => {
+    const { socket } = useAuthStore.getState();
+
+    if (!socket) return;
+
+    socket.off("interview_created");
+
+    socket.on("interview_created", (data: any) => {
+      set((state) => ({
+        interviews: [data.interview, ...state.interviews],
+      }))
+    })
+  },
+
   cancelInterview: async (id) => {
     set({ loading: true });
 
@@ -134,6 +151,8 @@ export const useInterviewStore = create<InterviewStore>((set) => ({
       set({ loading: false });
     }
   },
+
+
 
   clearInterview: () => {
     set({

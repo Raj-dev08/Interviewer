@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import SocketProvider from "@/components/SocketProvider";
 
 import { Toaster } from "react-hot-toast";
 
@@ -29,6 +30,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <SocketProvider/>
       <body className="min-h-screen bg-zinc-950 text-white">
         {children}
 
