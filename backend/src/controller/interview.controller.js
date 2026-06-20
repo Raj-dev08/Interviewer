@@ -130,4 +130,54 @@ export const cancelInterview = async (req, res, next) => {
     }
 }
 
+export const deleteInterview = async (req, res, next) => {
+    try {
+        const { user } = req;
+
+        if (user.isDisabled) {
+            return res.status(403).json({
+                message: "Your account is disabled. Please contact support."
+            });
+        }
+
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({
+                message: "Id is required"
+            });
+        }
+
+        const interview = await Interview.findById(id);
+
+        if (!interview) {
+            return res.status(404).json({
+                message: "Interview not found"
+            });
+        }
+
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({
+                message: "You are not authorized to delete this interview"
+            });
+        }
+
+        if (interview.status !== "scheduled") {
+            return res.status(400).json({
+                message: "Only scheduled interviews can be deleted"
+            });
+        }
+
+        await Interview.findByIdAndDelete(id);
+        await redis.del(`interviewsFor:${user._id}`)
+        await redis.del(`interview:${id}`)
+
+        return res.status(200).json({
+            message: "Interview deleted successfully"
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 //todo:ratings system

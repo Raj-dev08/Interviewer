@@ -21,6 +21,7 @@ type InterviewStore = {
   createInterview: (type: Interview["type"]) => Promise<boolean>;
   getInterview: (id: string) => Promise<void>;
   getAllInterviews: () => Promise<void>;
+  deleteInterview: (id: string) => Promise<boolean>;
   cancelInterview: (id: string) => Promise<boolean>;
   clearInterview: () => void;
 
@@ -102,6 +103,43 @@ export const useInterviewStore = create<InterviewStore>((set,get) => ({
         err?.response?.data?.message ||
         "Failed to fetch interviews"
       );
+    } finally {
+      set({ loading: false });
+    }
+  },
+
+  deleteInterview: async (id) => {
+    set({ loading: true });
+
+    try {
+      const res = await axiosInstance.delete(
+        `/interview/delete/${id}`
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: ["interviews"],
+      });
+
+      queryClient.removeQueries({
+        queryKey: ["interview", id],
+      });
+
+      set({ interview: null });
+
+      toast.success(
+        res.data.message || "Interview deleted successfully"
+      );
+
+      get().getAllInterviews()
+
+      return true;
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+        "Failed to delete interview"
+      );
+
+      return false;
     } finally {
       set({ loading: false });
     }

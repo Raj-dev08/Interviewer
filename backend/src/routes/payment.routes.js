@@ -1,16 +1,16 @@
 import { Router } from "express";
-import { 
-    createPlan, 
-    getAllPlans, 
-    subscribeToPlan, 
-    payForSubscription, 
-    cancelSubscription, 
-    getUserSubscriptions, 
-    getActiveSubscription, 
-    getAllPayments, 
+import {
+    createPlan,
+    getAllPlans,
+    subscribeToPlan,
+    payForSubscription,
+    cancelSubscription,
+    getUserSubscriptions,
+    getActiveSubscription,
+    getAllPayments,
     getPaymentById,
-    getTotalRevenue, 
-    activeSubscriptionsReport  
+    getTotalRevenue,
+    activeSubscriptionsReport
 } from "../controller/plan.controller.js";
 
 const router = Router();

@@ -110,7 +110,7 @@ export const runDSAQuestion = async (req, res, next) => {
             return res.status(400).json({ message: `Language ${language} is not supported.` });
         }
 
-        
+
         const redisKey = `ongoingInterview:${interviewId}`;
         const cached = await redis.get(redisKey);
 
@@ -120,31 +120,31 @@ export const runDSAQuestion = async (req, res, next) => {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        
+
         const redisTimeLock = `interview-started-for:${interviewId}`
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
+            else {
+                await interviewId.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
         const belongsToInterview = interview.questions.dsa.some(
@@ -165,13 +165,13 @@ export const runDSAQuestion = async (req, res, next) => {
         }
 
         const redisLockKey = `dsa-run-lock:${user._id}-${interviewId}-${questionId}`
-        const locked = await redis.set(redisLockKey,"1","EX",5,"NX")
+        const locked = await redis.set(redisLockKey, "1", "EX", 5, "NX")
 
-        if(!locked){
-            return res.status(400).json({ message: "running code too fast"})
+        if (!locked) {
+            return res.status(400).json({ message: "running code too fast" })
         }
 
-        await interviewQueue.add("decideNextDecision",{
+        await interviewQueue.add("decideNextDecision", {
             interviewId,
             userId: user._id,
             questionId
@@ -185,7 +185,7 @@ export const runDSAQuestion = async (req, res, next) => {
         const visibleTestCases = dsaQuestion.testCases.filter(tc => !tc.isHidden);
 
         const batchedInput = JSON.stringify(
-            visibleTestCases.map(tc =>tc.input)
+            visibleTestCases.map(tc => tc.input)
         );
 
         const response = await axios.post(
@@ -290,8 +290,8 @@ export const submitDSAQuestion = async (req, res, next) => {
     try {
         const { user } = req
 
-        if(user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"})
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params;
@@ -321,28 +321,28 @@ export const submitDSAQuestion = async (req, res, next) => {
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
+            else {
+                await interviewId.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
-       
-        
 
-        if (interview.status !== "started"){
+
+
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
         const belongsToInterview = interview.questions.dsa.some(
@@ -355,7 +355,7 @@ export const submitDSAQuestion = async (req, res, next) => {
 
         const dsaQuestion = await dsa.findById(questionId);
 
-        if(!dsaQuestion){
+        if (!dsaQuestion) {
             return res.status(404).json({ message: "DSA question not found" });
         }
 
@@ -364,13 +364,13 @@ export const submitDSAQuestion = async (req, res, next) => {
         }
 
         const redisLockKey = `dsa-submit-lock:${user._id}-${interviewId}-${questionId}`
-        const locked = await redis.set(redisLockKey,"1","EX",10,"NX")
+        const locked = await redis.set(redisLockKey, "1", "EX", 10, "NX")
 
-        if(!locked){
-            return res.status(400).json({ message: "submitting code too fast"})
+        if (!locked) {
+            return res.status(400).json({ message: "submitting code too fast" })
         }
 
-        await interviewQueue.add("decideNextDecision",{
+        await interviewQueue.add("decideNextDecision", {
             interviewId,
             userId: user._id,
             questionId
@@ -418,7 +418,7 @@ export const submitDSAQuestion = async (req, res, next) => {
                 difficulty: dsaQuestion.difficulty,
                 language,
                 isCorrect: false,
-                percentageBeaten:0,
+                percentageBeaten: 0,
                 totalPoint: 0
             })
 
@@ -464,11 +464,11 @@ export const submitDSAQuestion = async (req, res, next) => {
                 }
             );
 
-            if (!validatorRes?.data ) {
+            if (!validatorRes?.data) {
                 return res.status(500).json({ message: "Custom validator failed to execute" });
             }
 
-            if (validatorRes.data.status.id !== 3){
+            if (validatorRes.data.status.id !== 3) {
                 const submission = await createSubmission({
                     interviewId,
                     userId: user._id,
@@ -477,7 +477,7 @@ export const submitDSAQuestion = async (req, res, next) => {
                     difficulty: dsaQuestion.difficulty,
                     language,
                     isCorrect: false,
-                    percentageBeaten:0,
+                    percentageBeaten: 0,
                     totalPoint: 0
                 })
 
@@ -491,7 +491,7 @@ export const submitDSAQuestion = async (req, res, next) => {
 
             let percentageBeaten = 0
             let totalPoint = 0
-            if (parsed.allPassed === true ) {
+            if (parsed.allPassed === true) {
                 totalPoint = parseFloat(response.data.time) || 0 + parseFloat(response.data.memory) || 0
 
                 percentageBeaten = await calculatePercentage({
@@ -536,7 +536,7 @@ export const submitDSAQuestion = async (req, res, next) => {
 
         let percentageBeaten = 0
         let totalPoint = 0
-        if (isCorrect){
+        if (isCorrect) {
             totalPoint = parseFloat(response.data.time) || 0 + parseFloat(response.data.memory) || 0
 
             percentageBeaten = await calculatePercentage({
@@ -559,10 +559,10 @@ export const submitDSAQuestion = async (req, res, next) => {
             isCorrect,
             percentageBeaten,
             totalPoint
-        })     
+        })
 
         return res.status(200).json({
-            passed:isCorrect,
+            passed: isCorrect,
             results,
             validationType: "exact",
             submission
@@ -577,13 +577,13 @@ export const startSysDes = async (req, res, next) => {
     try {
         const { user } = req
 
-        if(user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"})
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params
 
-        if (!interviewId || !questionId){
+        if (!interviewId || !questionId) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -592,58 +592,103 @@ export const startSysDes = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        
+
         const redisTimeLock = `interview-started-for:${interviewId}`
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
+            else {
+                await interviewQueue.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
-        const belongsToInterview = interview.questions.systemdesign.some(
-            q => q._id.toString() === questionId
+        const redisSysDesStartKey = `sysDes:start:${questionId}:${interviewId}:${user._id}`
+
+        const startLock = await redis.set(
+            redisSysDesStartKey,
+            user._id,
+            "EX",
+            interview.duration * 60 + 300,
+            "NX"
         );
 
-        if (!belongsToInterview){
-            return res.status(404).json({ message: "Question not found in interview" });
+        if (!startLock) {
+            return res.status(400).json({ message: "You are already in a system design interview" })
+        }
+
+        const sysDes = interview?.questions?.sysDes;
+
+        const allIds = sysDes.map(q => q._id.toString())
+
+        console.log(allIds)
+        if (!allIds.includes(questionId)) {
+            return res.status(400).json({
+                message: "System design question not found in interview"
+            });
         }
 
         const sysDesignQuestion = await SystemDesign.findById(questionId);
 
-        if (!sysDesignQuestion){
+        if (!sysDesignQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
-        await interviewQueue.add("startSysDesign",{
+        await interviewQueue.add("startSysDesign", {
             interviewId,
             userId: user._id,
             questionId
         })
 
-        return res.status(200).json({ message: "Sys design interview started successfully"});
+        return res.status(200).json({ message: "Sys design interview started successfully" });
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getStartStatusSysDes = async (req, res, next) => {
+    try {
+        const { user } = req
+
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
+        }
+
+        const { interviewId, questionId } = req.params
+
+        if (!interviewId || !questionId) {
+            return res.status(400).json({ message: "Missing required fields." });
+        }
+
+        const redisSysDesStartKey = `sysDes:start:${questionId}:${interviewId}:${user._id}`
+
+        const startLock = await redis.get(redisSysDesStartKey)
+
+        if (!startLock) {
+            return res.status(200).json({ started: false })
+        }
+
+        return res.status(200).json({ started: true });
     } catch (error) {
         next(error)
     }
@@ -653,14 +698,15 @@ export const messageSysDes = async (req, res, next) => {
     try {
         const { user } = req
 
-        if (user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"})
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
+
 
         const { interviewId, questionId } = req.params
         const { message } = req.body
 
-        if (!interviewId || !questionId || !message){
+        if (!interviewId || !questionId || !message) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -669,53 +715,52 @@ export const messageSysDes = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        
+
         const redisTimeLock = `interview-started-for:${interviewId}`
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
+            else {
+                await interviewId.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
+        const sysDes = interview.questions.sysDes
 
-        const belongsToInterview = interview.questions.systemdesign.some(
-            q => q._id.toString() === questionId
-        );
+        const allIds = sysDes.map(q => q._id.toString())
 
-        if (!belongsToInterview){
+        if (!allIds.includes(questionId)) {
             return res.status(404).json({ message: "Question not found in interview" });
         }
 
         const sysDesignQuestion = await SystemDesign.findById(questionId);
 
-        if (!sysDesignQuestion){
+        if (!sysDesignQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
-        const newMessage = await SystemDesignChat.create({
+        const newMessage = await SystemdesignChat.create({
             interviewId,
             userId: user._id,
             questionId,
@@ -725,28 +770,30 @@ export const messageSysDes = async (req, res, next) => {
 
         //queue based on redis window so u can spam message and we execute once only
         const redisLockForMessage = `messageLock-${interviewId}-${questionId}-${user._id}`
-        const locked = await redis.set(redisLockForMessage,"1","EX",10,"NX")
+        const locked = await redis.set(redisLockForMessage, "1", "EX", 10, "NX")
 
-        if (locked){//only hit it in 10 secs range so that it doesnt reply to everything at once 
-            await interviewQueue.add("newMessage",{
+        if (locked) {//only hit it in 10 secs range so that it doesnt reply to everything at once 
+            await interviewQueue.add("newMessage", {
                 interviewId,
                 userId: user._id,
                 questionId,
             })
         }
-        
+
         return res.status(200).json({ message: "Message sent successfully", newMessage });
     } catch (error) {
         next(error)
     }
 }
 
+// track topics later so they dont get it
+
 export const getSysDesignMessages = async (req, res, next) => {
     try {
         const { user } = req
 
-        if (user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"}) 
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params
@@ -759,7 +806,7 @@ export const getSysDesignMessages = async (req, res, next) => {
             return res.status(400).json({ message: "Invalid before timestamp" });
         }
 
-        if (!interviewId || !questionId ){
+        if (!interviewId || !questionId) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -769,61 +816,47 @@ export const getSysDesignMessages = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
+        const sysDes = interview?.questions?.sysDes
 
-        const belongsToInterview = interview.questions.systemdesign.some(
-            q => q._id.toString() === questionId
-        );
+        const allId = sysDes.map(q => q._id)
 
-        if (!belongsToInterview){
+        const belongsToInterview = allId.includes(questionId)
+
+        if (!belongsToInterview) {
             return res.status(404).json({ message: "Question not found in interview" });
         }
 
         const sysDesignQuestion = await SystemDesign.findById(questionId);
 
-        if (!sysDesignQuestion){
+        if (!sysDesignQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
-        const redisCacheKey = `message-for:${interviewId}-${questionId}-${user._id}-bucket-${before}-${limit}`
 
-        const messageCache = await redis.get(redisCacheKey)
-
-        if (messageCache){
-            const payload = JSON.parse(messageCache)
-            return res.status(200).json({ messages: payload.messages, hasMore: payload.hasMore})
-        }
-
-        const messages = await SystemDesignChat.find({
+        const messages = await SystemdesignChat.find({
             userId: user._id,
             interviewId,
             questionId,
-            createdAt: { $lt: before ? new Date(before) : new Date()}
-        }).sort({ createdAt: -1}).limit(limit)
+            createdAt: { $lt: before ? new Date(before) : new Date() }
+        }).sort({ createdAt: -1 }).limit(limit)
 
         messages.reverse()
 
         const hasMore = messages.length == limit;
 
-        const messagePayloadForCache = {
-            messages: messages.map(m => m.toObject()),
-            hasMore
-        }
-
-        await redis.set(redisCacheKey, JSON.stringify(messagePayloadForCache), "EX", 60*60)
-
-        return res.status(200).json({ messages, hasMore})
+        return res.status(200).json({ messages, hasMore })
     } catch (error) {
         next(error)
     }
@@ -833,13 +866,13 @@ export const startCase = async (req, res, next) => {
     try {
         const { user } = req
 
-        if(user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"})
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params
 
-        if (!interviewId || !questionId){
+        if (!interviewId || !questionId) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -848,58 +881,58 @@ export const startCase = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        
+
         const redisTimeLock = `interview-started-for:${interviewId}`
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
+            else {
+                await interviewId.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
         const belongsToInterview = interview.questions.case.some(
             q => q._id.toString() === questionId
         );
 
-        if (!belongsToInterview){
+        if (!belongsToInterview) {
             return res.status(404).json({ message: "Question not found in interview" });
         }
 
         const caseStudyQuestion = await caseStudy.findById(questionId);
 
-        if (!caseStudyQuestion){
+        if (!caseStudyQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
-        await interviewQueue.add("startCaseStudy",{
+        await interviewQueue.add("startCaseStudy", {
             interviewId,
             userId: user._id,
             questionId
         })
 
-        return res.status(200).json({ message: "Sys design interview started successfully"});
+        return res.status(200).json({ message: "Sys design interview started successfully" });
     } catch (error) {
         next(error)
     }
@@ -909,14 +942,14 @@ export const messageCase = async (req, res, next) => {
     try {
         const { user } = req
 
-        if (user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"})
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params
         const { message } = req.body
 
-        if (!interviewId || !questionId || !message){
+        if (!interviewId || !questionId || !message) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -925,35 +958,35 @@ export const messageCase = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        
+
         const redisTimeLock = `interview-started-for:${interviewId}`
 
         const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview){
+        if (!timeLockForInterview) {
 
-            if (interview.status !== "started"){
+            if (interview.status !== "started") {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
-            else{
-                await interviewId.add("finishInterview",{
-                    interviewId, 
+            else {
+                await interviewId.add("finishInterview", {
+                    interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet"})
+                return res.status(400).json({ message: "Interview has not started yet" })
             }
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
 
@@ -961,13 +994,13 @@ export const messageCase = async (req, res, next) => {
             q => q._id.toString() === questionId
         );
 
-        if (!belongsToInterview){
+        if (!belongsToInterview) {
             return res.status(404).json({ message: "Question not found in interview" });
         }
 
         const caseQuestion = await caseStudy.findById(questionId);
 
-        if (!caseQuestion){
+        if (!caseQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
@@ -981,17 +1014,17 @@ export const messageCase = async (req, res, next) => {
 
         //queue based on redis window so u can spam message and we execute once only
         const redisLockForMessage = `messageLock-Case-${interviewId}-${questionId}-${user._id}`
-        const locked = await redis.set(redisLockForMessage,"1","EX",10,"NX")
+        const locked = await redis.set(redisLockForMessage, "1", "EX", 10, "NX")
 
-        if (locked){//only hit it in 10 secs range so that it doesnt reply to everything at once 
-            await interviewQueue.add("newMessageCase",{
+        if (locked) {//only hit it in 10 secs range so that it doesnt reply to everything at once 
+            await interviewQueue.add("newMessageCase", {
                 interviewId,
                 userId: user._id,
                 questionId,
             })
         }
-        
-        return res.status(200).json({ message: "Message sent successfully", newMessage }); 
+
+        return res.status(200).json({ message: "Message sent successfully", newMessage });
     } catch (error) {
         next(error)
     }
@@ -1001,8 +1034,8 @@ export const getCaseStudyMessages = async (req, res, next) => {
     try {
         const { user } = req
 
-        if (user.isDisabled){
-            return res.status(403).json({ message: "User is disabled"}) 
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
         }
 
         const { interviewId, questionId } = req.params
@@ -1015,7 +1048,7 @@ export const getCaseStudyMessages = async (req, res, next) => {
             return res.status(400).json({ message: "Invalid before timestamp" });
         }
 
-        if (!interviewId || !questionId ){
+        if (!interviewId || !questionId) {
             return res.status(400).json({ message: "Missing required fields." });
         }
 
@@ -1025,16 +1058,16 @@ export const getCaseStudyMessages = async (req, res, next) => {
 
         const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-        if (!interview){
+        if (!interview) {
             return res.status(404).json({ message: "Interview not found" });
         }
 
-        if (interview.status !== "started"){
+        if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
         }
 
-        if (interview.userId.toString() !== user._id.toString()){
-            return res.status(403).json({ message: "You are not authorized to message this interview"})
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
 
 
@@ -1042,13 +1075,13 @@ export const getCaseStudyMessages = async (req, res, next) => {
             q => q._id.toString() === questionId
         );
 
-        if (!belongsToInterview){
+        if (!belongsToInterview) {
             return res.status(404).json({ message: "Question not found in interview" });
         }
 
         const caseQuestion = await caseStudy.findById(questionId);
 
-        if (!caseQuestion){
+        if (!caseQuestion) {
             return res.status(404).json({ message: "System Design question not found" });
         }
 
@@ -1056,17 +1089,17 @@ export const getCaseStudyMessages = async (req, res, next) => {
 
         const messageCache = await redis.get(redisCacheKey)
 
-        if (messageCache){
+        if (messageCache) {
             const payload = JSON.parse(messageCache)
-            return res.status(200).json({ messages: payload.messages, hasMore: payload.hasMore})
+            return res.status(200).json({ messages: payload.messages, hasMore: payload.hasMore })
         }
 
         const messages = await CaseChat.find({
             userId: user._id,
             interviewId,
             questionId,
-            createdAt: { $lt: before ? new Date(before) : new Date()}
-        }).sort({ createdAt: -1}).limit(limit)
+            createdAt: { $lt: before ? new Date(before) : new Date() }
+        }).sort({ createdAt: -1 }).limit(limit)
 
         messages.reverse()
 
@@ -1077,9 +1110,9 @@ export const getCaseStudyMessages = async (req, res, next) => {
             hasMore
         }
 
-        await redis.set(redisCacheKey, JSON.stringify(messagePayloadForCache), "EX", 60*60)
+        await redis.set(redisCacheKey, JSON.stringify(messagePayloadForCache), "EX", 60 * 60)
 
-        return res.status(200).json({ messages, hasMore})
+        return res.status(200).json({ messages, hasMore })
     } catch (error) {
         next(error)
     }

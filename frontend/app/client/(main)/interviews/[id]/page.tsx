@@ -14,6 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useInterviewStore } from "@/store/useInterview";
+import { useInterviewFlowStore } from "@/store/useInterviewFlow";
 
 const icons = {
   case: FileText,
@@ -40,11 +41,27 @@ export default function InterviewDetailsPage() {
     cancelInterview,
   } = useInterviewStore();
 
+  const { startInterview, startingInterview } = useInterviewFlowStore();
+
   useEffect(() => {
     if (params.id) {
       getInterview(params.id as string);
     }
   }, [params.id]);
+
+  const handleStartInterview = async () => {
+    if (!interview) return;
+
+    const success = await startInterview(
+      interview._id
+    );
+
+    if (success) {
+      router.push(
+        `/client/interviews/start/${interview._id}`
+      );
+    }
+  };
 
   const handleCancel = async () => {
     if (!interview) return;
@@ -57,6 +74,8 @@ export default function InterviewDetailsPage() {
       router.back();
     }
   };
+
+  console.log(interview)
 
   if (loading) {
     return (
@@ -150,8 +169,19 @@ export default function InterviewDetailsPage() {
               Cancel Interview
             </Button>
 
-            <Button>
-              Start Interview
+            <Button
+              onClick={handleStartInterview}
+              disabled={startingInterview}
+              className="rounded-xl bg-white text-black hover:bg-zinc-200 font-semibold px-6 py-2 shadow-lg shadow-white/10 transition-all cursor-pointer"
+            >
+              {startingInterview ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                "Start Interview"
+              )}
             </Button>
 
           </div>

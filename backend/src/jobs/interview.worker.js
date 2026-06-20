@@ -30,90 +30,90 @@ await connectDB();
 
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_API_KEY,
-  baseURL: process.env.AI_URL
+    apiKey: process.env.AI_API_KEY,
+    baseURL: process.env.AI_URL
 });
 
 
 
 
 export const validateInterviewQuestionContext = async ({
-  userId,
-  interviewId,
-  questionId,
-  QuestionModel,
-  interviewStatus = "started",
-  interviewQuestionPath = "case"
+    userId,
+    interviewId,
+    questionId,
+    QuestionModel,
+    interviewStatus = "started",
+    interviewQuestionPath = "case"
 }) => {
-  try {
-    if (
-      !mongoose.Types.ObjectId.isValid(userId) ||
-      !mongoose.Types.ObjectId.isValid(interviewId) ||
-      !mongoose.Types.ObjectId.isValid(questionId)
-    ) {
-      return { ok: false, message: "Invalid IDs" };
+    try {
+        if (
+            !mongoose.Types.ObjectId.isValid(userId) ||
+            !mongoose.Types.ObjectId.isValid(interviewId) ||
+            !mongoose.Types.ObjectId.isValid(questionId)
+        ) {
+            return { ok: false, message: "Invalid IDs" };
+        }
+
+        const user = await User.findById(userId);
+        if (!user || user.isDisabled) {
+            return { ok: false, message: "User not found or is disabled" };
+        }
+
+        const redisKey = `ongoingInterview:${interviewId}`;
+        const cached = await redis.get(redisKey);
+
+        const interview =
+            cached ? JSON.parse(cached) : await Interview.findById(interviewId);
+
+        if (
+            !interview ||
+            interview.status !== interviewStatus ||
+            interview.userId.toString() !== user._id.toString()
+        ) {
+            return { ok: false, message: "Interview invalid" };
+        }
+
+        const question = await QuestionModel.findById(questionId);
+
+        const questionList = interview.questions[interviewQuestionPath]
+
+        const existsInInterview = Array.isArray(questionList)
+            ? questionList.some((q) => q._id.toString() === questionId)
+            : false;
+
+        if (!question || !existsInInterview) {
+            return { ok: false, message: "Question not found" };
+        }
+
+        return {
+            ok: true,
+            user,
+            interview,
+            question
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            message: err.message || "Validation failed"
+        };
     }
-
-    const user = await User.findById(userId);
-    if (!user || user.isDisabled) {
-      return { ok: false, message: "User not found or is disabled" };
-    }
-
-    const redisKey = `ongoingInterview:${interviewId}`;
-    const cached = await redis.get(redisKey);
-
-    const interview =
-      cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-    if (
-      !interview ||
-      interview.status !== interviewStatus ||
-      interview.userId.toString() !== user._id.toString()
-    ) {
-      return { ok: false, message: "Interview invalid" };
-    }
-
-    const question = await QuestionModel.findById(questionId);
-
-    const questionList = interview.questions[questionType]
-
-    const existsInInterview = Array.isArray(questionList)
-      ? questionList.some((q) => q._id.toString() === questionId)
-      : false;
-
-    if (!question || !existsInInterview) {
-      return { ok: false, message: "Question not found" };
-    }
-
-    return {
-      ok: true,
-      user,
-      interview,
-      question
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      message: err.message || "Validation failed"
-    };
-  }
 };
 
 const interviewWorker = new Worker("interview", async (job) => {
     try {
-        if (job.name === "createInterview"){
+        if (job.name === "createInterview") {
             const { userId, type, requestId } = job.data;
 
             const user = await User.findById(userId);
 
-            if (!user || user.isDisabled || !type || !["case","dsa-only","system_design","mixed"].includes(type)) {
-                await emitSocketEvent(userId.toString(),"error",{
+            if (!user || user.isDisabled || !type || !["case", "dsa-only", "system_design", "mixed"].includes(type)) {
+                await emitSocketEvent(userId.toString(), "error", {
                     message: "User not found or is disabled or invalid interview type"
                 })
                 return
             }
 
-            const allPreviousInterViews = await Interview.find({ userId , type , status: "completed"}).select("questions")
+            const allPreviousInterViews = await Interview.find({ userId, type, status: "completed" }).select("questions")
 
 
             let completedQuestions = {
@@ -122,7 +122,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 system_design: []
             };
 
-            if (allPreviousInterViews.length > 0 ){
+            if (allPreviousInterViews.length > 0) {
                 for (const interview of allPreviousInterViews) {
                     if (interview.questions?.case) {
                         completedQuestions.case.push(...interview.questions.case);
@@ -156,20 +156,20 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const combos = [
                 {
-                    "easy":3,
-                    "medium":1
+                    "easy": 3,
+                    "medium": 1
                 },
                 {
-                    "easy":2,
-                    "hard":1
+                    "easy": 2,
+                    "hard": 1
                 },
                 {
-                    "easy":1,
-                    "medium":2
+                    "easy": 1,
+                    "medium": 2
                 },
                 {
-                    "medium":1,
-                    "hard":1
+                    "medium": 1,
+                    "hard": 1
                 },
             ]
 
@@ -208,29 +208,29 @@ const interviewWorker = new Worker("interview", async (job) => {
             let selectedCombo;
 
             function isValidMixedCombo(combo) {
-                if (combo.dsa){
-                    if(combo.dsa.easy && combo.dsa.easy > totalDSAEasyCount){
+                if (combo.dsa) {
+                    if (combo.dsa.easy && combo.dsa.easy > totalDSAEasyCount) {
                         return false;
                     }
-                    if(combo.dsa.medium && combo.dsa.medium > totalDSAMediumCount){
+                    if (combo.dsa.medium && combo.dsa.medium > totalDSAMediumCount) {
                         return false
                     }
-                    if (combo.dsa.hard && combo.dsa.hard > totalDSADifficultCount){
+                    if (combo.dsa.hard && combo.dsa.hard > totalDSADifficultCount) {
                         return false
                     }
-                } if (combo.sysDes){
-                    if (combo.sysDes.easy && combo.sysDes.easy > totalSysDesEasyCount){
+                } if (combo.sysDes) {
+                    if (combo.sysDes.easy && combo.sysDes.easy > totalSysDesEasyCount) {
                         return false
                     }
-                    if (combo.sysDes.medium && combo.sysDes.medium > totalSysDesMediumCount){
+                    if (combo.sysDes.medium && combo.sysDes.medium > totalSysDesMediumCount) {
                         return false
                     }
-                    if (combo.sysDes.hard && combo.sysDes.hard > totalSysDesDifficultCount){
+                    if (combo.sysDes.hard && combo.sysDes.hard > totalSysDesDifficultCount) {
                         return false
                     }
                 }
                 return true
-   
+
             }
 
             function isValidCombo(combo) {
@@ -271,31 +271,31 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             for (let index = 0; index < Math.max(combos.length, mixedCombos.length); index++) {
                 let randomSelectedCombo
-                if (type == "mixed"){
+                if (type == "mixed") {
                     randomSelectedCombo = mixedCombos[Math.floor(Math.random() * mixedCombos.length)]
 
-                    if (isValidMixedCombo(randomSelectedCombo)){
+                    if (isValidMixedCombo(randomSelectedCombo)) {
                         selectedCombo = randomSelectedCombo
                         break
                     }
-                }else{
+                } else {
                     randomSelectedCombo = combos[Math.floor(Math.random() * combos.length)]
-                    
-                    if ( isValidCombo(randomSelectedCombo) ){
+
+                    if (isValidCombo(randomSelectedCombo)) {
                         selectedCombo = randomSelectedCombo
                         break
                     }
                 }
-                
+
             }
 
             // console.log(selectedCombo)
 
-            if(!selectedCombo){
-                if (type == "mixed"){
+            if (!selectedCombo) {
+                if (type == "mixed") {
                     let selectedMixedCombo = {};
 
-                    if (totalDSAEasyCount ||totalDSAMediumCount ||totalDSADifficultCount) {
+                    if (totalDSAEasyCount || totalDSAMediumCount || totalDSADifficultCount) {
                         selectedMixedCombo.dsa = {};
 
                         if (totalDSAEasyCount > 0)
@@ -306,7 +306,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                             selectedMixedCombo.dsa.hard = 1;
                     }
 
-                    if (totalSysDesEasyCount ||totalSysDesMediumCount ||totalSysDesDifficultCount) {
+                    if (totalSysDesEasyCount || totalSysDesMediumCount || totalSysDesDifficultCount) {
                         selectedMixedCombo.sysDes = {};
 
                         if (totalSysDesEasyCount > 0)
@@ -363,30 +363,30 @@ const interviewWorker = new Worker("interview", async (job) => {
 
 
             let selectedQuestions = {
-                case:[],
-                dsa:[],
-                sysDes:[]
+                case: [],
+                dsa: [],
+                sysDes: []
             }
 
             let duration = 0
 
-            for(const [key,val] of Object.entries(selectedCombo)){
-                if ( type === "case"){
-                    const { ids, totalDuration } = await getRandomQuestion(caseStudy,key,completedQuestions.case,val)
+            for (const [key, val] of Object.entries(selectedCombo)) {
+                if (type === "case") {
+                    const { ids, totalDuration } = await getRandomQuestion(caseStudy, key, completedQuestions.case, val)
                     selectedQuestions.case = [...(selectedQuestions.case || []), ...ids];
                     duration += totalDuration
                 }
-                else if ( type === "dsa-only"){
-                    const { ids, totalDuration } = await getRandomQuestion(dsa,key,completedQuestions.dsa,val)
+                else if (type === "dsa-only") {
+                    const { ids, totalDuration } = await getRandomQuestion(dsa, key, completedQuestions.dsa, val)
                     selectedQuestions.dsa = [...(selectedQuestions.dsa || []), ...ids]
                     duration += totalDuration
                 }
-                else if ( type === "system_design"){
-                    const { ids, totalDuration } = await getRandomQuestion(SystemDesign,key,completedQuestions.system_design,val)
+                else if (type === "system_design") {
+                    const { ids, totalDuration } = await getRandomQuestion(SystemDesign, key, completedQuestions.system_design, val)
                     selectedQuestions.sysDes = [...(selectedQuestions.sysDes || []), ...ids]
                     duration += totalDuration
                 }
-                else if ( type === "mixed"){
+                else if (type === "mixed") {
                     if (selectedCombo.dsa) {
                         for (const [difficulty, count] of Object.entries(selectedCombo.dsa)) {
 
@@ -463,7 +463,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 title: "Interview created",
                 message: `Interview creation completed successfully for ${type} interview`,
                 link: `/interviews/${newInterview._id}`,//wip
-                meta:{
+                meta: {
                     interviewId: newInterview._id
                 }
             })
@@ -475,18 +475,18 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             await redis.del(redisKey)
 
-            await emitSocketEvent(userId.toString(),"interview_created",{
+            await emitSocketEvent(userId.toString(), "interview_created", {
                 interview: newInterview,
                 message: `Interview created successfully`
             })
 
-            await emitSocketEvent(userId.toString(),"notifications_created",{
+            await emitSocketEvent(userId.toString(), "notifications_created", {
                 notification
             })
-        }  
-        else if (job.name === "startSysDesign"){
+        }
+        else if (job.name === "startSysDesign") {
             const { interviewId, userId, questionId } = job.data;
-            
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -496,11 +496,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewQuestionPath: "sysDes"
             });
 
+            console.log(result)
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
@@ -519,6 +520,8 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Keep the tone natural and interview-like, not instructional or overly verbose.
             `
 
+
+
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
@@ -531,6 +534,8 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const output = decision.choices[0].message.content;
 
+            console.log(output)
+
             const newMessage = await SystemdesignChat.create({
                 interviewId,
                 userId,
@@ -539,13 +544,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessage",{
+            await emitSocketEvent(userId.toString(), "newMessageSysDes", {
                 newMessage
             })
         }
-        else if (job.name === "newMessage"){
+        else if (job.name === "newMessage") {
             const { interviewId, userId, questionId } = job.data;
-            
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -556,17 +561,17 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
 
             const redisKeyForEnd = `end-interview-chat:${interviewId}:${userId}:${questionId}`
 
-            if (await redis.exists(redisKeyForEnd)){
+            if (await redis.exists(redisKeyForEnd)) {
                 const sysGeneratedMsg = await SystemdesignChat.create({
                     interviewId,
                     userId,
@@ -575,7 +580,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     message: "The conversation is finished please move to the next question or topic"
                 })
 
-                await emitSocketEvent(userId.toString(),"newMessage",{
+                await emitSocketEvent(userId.toString(), "newMessage", {
                     newMessage: sysGeneratedMsg
                 })
 
@@ -588,72 +593,90 @@ const interviewWorker = new Worker("interview", async (job) => {
                 userId,
                 questionId
             }).sort({ createdAt: -1 })
-            .limit(30)
-            .lean();    
+                .limit(30)
+                .lean();
             previousMessages.reverse();
-            
+
+            const chatHistory = previousMessages
+                .map(m => `${m.sentBy === "user" ? "Candidate" : "Interviewer"}: ${m.message}`)
+                .join("\n");
+
             const baseContext = `
-                Question: ${question.question}
+                SYSTEM DESIGN INTERVIEW QUESTION
+
+                Title: ${question.question}
 
                 Description:
                 ${question.description}
 
                 Constraints:
-                ${question.constraints}
+                ${question.constraints || "None"}
 
                 Focus Areas:
-                ${question.topics?.join(", ")}
+                ${question.topics?.join(", ") || "General System Design"}
 
                 Evaluation Criteria:
-                ${question.evaluation.map(e => `- ${e.title}: ${e.description} : weightatage ${e.weight} - match type${e.evalType}}`).join("\n")}
+                ${question.evaluation
+                    ?.map(
+                        e =>
+                            `- ${e.title}: ${e.description} (weight: ${e.weight}, type: ${e.evalType})`
+                    )
+                    .join("\n")}
                 `;
 
-            const hiddenGuide = question.correctAnswerFlow
-                .sort((a,b) => a.step - b.step)
-                .map(s => `${s.title}: ${s.approach}`)
-                .join("\n");
+            const hiddenGuide = `
+                THIS IS INTERNAL EVALUATION GUIDE (DO NOT REVEAL):
 
-            const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`);
+                ${question.correctAnswerFlow
+                    ?.sort((a, b) => a.step - b.step)
+                    .map(s => `Step ${s.step}: ${s.title} -> ${s.approach}`)
+                    .join("\n")}
+                `;
+
 
             const systemPrompt = `
-                You are a strict and realistic system design interviewer.
+                You are a strict, realistic SYSTEM DESIGN INTERVIEWER.
+
+                ====================
+                INTERVIEW CONTEXT
+                ====================
 
                 ${baseContext}
 
-                Your job is to conduct a real interview, not to teach.
+                ====================
+                CONVERSATION HISTORY
+                ====================
 
-                Rules you must follow:
+                ${chatHistory || "No previous conversation yet."}
 
-                - Ask one question at a time.
-                - Continuously analyze the candidate’s previous responses.
-                - Challenge assumptions, point out flaws, and ask follow-up questions.
-                - Push the candidate to clarify vague answers.
-                - Encourage depth: scalability, trade-offs, bottlenecks, failure handling.
-                - If the candidate is going in the wrong direction, do NOT correct directly. Instead, guide them with questions.
-                - Do NOT give complete solutions or structured answers.
-                - Do NOT dump knowledge or explain like a teacher.
+                ====================
+                INTERNAL GUIDE
+                ====================
 
-                Behavior:
-
-                - Be slightly strict and realistic, not friendly or casual.
-                - Keep responses concise and focused.
-                - Ask “why”, “how”, “what if” frequently.
-                - Introduce edge cases and constraints naturally.
-                - If the candidate gives a good answer, acknowledge briefly and move deeper.
-
-                Conversation control:
-
-                - If the user asks anything outside the interview scope (random questions, help, explanations, etc.), refuse and steer back.
-                - Treat out-of-scope behavior as negative and redirect:
-                Example: "Let's stay focused on the interview. Can you explain how your system handles X?"
-
-                Internal guidance (DO NOT reveal directly):
                 ${hiddenGuide}
 
-                Goal:
+                ====================
+                RULES
+                ====================
 
-                Evaluate the candidate’s thinking, not just correctness.
-                Drive the conversation toward a complete system design through iterative questioning.
+                - Ask only ONE question at a time when asking questions.
+                - Never explain full solutions.
+                - Never behave like a teacher.
+                - Focus on reasoning, trade-offs, scalability, and failure handling.
+                - Continuously challenge assumptions.
+                - If candidate is vague → force clarification with questions.
+                - If candidate is wrong → do NOT correct directly, instead probe deeper.
+                - If candidate is asking for info that is not in the question, do NOT provide it, instead ask them to ask for it.
+                - If candidate is asking for info in the question give it to them but dont layout easily like give them in turns the more the ask the more they get.
+                - Keep responses short and interview-like.
+                - Use Markdown to make the responses look good and structured
+
+                OUT OF SCOPE RULE:
+                If user asks unrelated questions, respond:
+                "Let's stay focused on the system design interview. How would you handle X?"
+
+                GOAL:
+                Evaluate thinking depth, not correctness. Drive toward a complete system design step-by-step.
                 `;
 
             const decision = await openai.chat.completions.create({
@@ -665,13 +688,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: `Previous conversation: ${chatContext}`
-                    
+                        content: `Previous conversation: ${chatHistory}`
+
                     }
                 ]
             });
 
-            
+
             const msg = decision.choices[0].message.content.trim();
 
             const newSysDesMessage = await SystemdesignChat.create({
@@ -682,7 +705,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: msg
             })
 
-            await emitSocketEvent(userId.toString(),"newMessage",{
+            await emitSocketEvent(userId.toString(), "newMessageSysDes", {
                 newMessage: newSysDesMessage
             })
 
@@ -743,12 +766,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: decisionSystemPrompt   
+                        content: decisionSystemPrompt
                     },
                     {
                         role: "user",
-                        content: `Previous conversation: ${chatContext}`
-                    
+                        content: `Previous conversation: ${chatHistory}`
+
                     }
                 ]
             });
@@ -756,27 +779,27 @@ const interviewWorker = new Worker("interview", async (job) => {
             const outputRaw = judgeRes.choices[0].message.content.trim();
             const output = JSON.parse(outputRaw);
 
-            if (output.shouldEnd ) {
-                await redis.set(redisKeyForEnd,"1","NX","EX",interview.duration * 60)
+            if (output.shouldEnd) {
+                await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
             }
 
             if (output.shouldRate) {
-                await interviewQueue.add("rateForMessage",{
+                await interviewQueue.add("rateForMessage", {
                     interviewId,
                     userId,
                     questionId
                 })
             }
 
-            await interviewQueue.add("nextDecision",{
+            await interviewQueue.add("nextDecision", {
                 interviewId,
                 userId,
                 questionId,
                 type: output.nextAction
             })
-           
+
         }
-        else if ( job.name === "nextDecision"){
+        else if (job.name === "nextDecision") {
             const { interviewId, userId, questionId, type } = job.data;
             const result = await validateInterviewQuestionContext({
                 userId,
@@ -788,35 +811,47 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
 
             let previousMessages;
 
-            if (type === "ask_followup"){
+            if (type === "ask_followup") {
                 previousMessages = await SystemdesignChat.find({
                     interviewId,
                     userId,
                     questionId
                 }).sort({ createdAt: -1 })
-                .lean()
+                    .lean()
             } else {
                 previousMessages = await SystemdesignChat.find({
                     interviewId,
                     userId,
                     questionId
                 }).sort({ createdAt: -1 })
-                .limit(30)
-                .lean()
+                    .limit(30)
+                    .lean()
             }
             previousMessages.reverse();
 
             const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`);
+
+            const lastUserMessage =
+                [...previousMessages]
+                    .reverse()
+                    .find(m => m.sentBy === "user")
+                    ?.message || "";
+
+            const lastAiMessage =
+                [...previousMessages]
+                    .reverse()
+                    .find(m => m.sentBy === "ai")
+                    ?.message || "";
 
             const baseContext = `
                 Question: ${question.question}
@@ -835,14 +870,16 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const hiddenGuide = question.correctAnswerFlow
-                .sort((a,b) => a.step - b.step)
+                .sort((a, b) => a.step - b.step)
                 .map(s => `${s.title}: ${s.approach}`)
                 .join("\n");
 
-            const systemPrompt = getPromptByType(type,{
+            const systemPrompt = getPromptByType(type, {
                 baseContext,
                 hiddenGuide,
-                chatContext
+                chatContext,
+                lastUserMessage,
+                lastAiMessage
             });
 
             const decision = await openai.chat.completions.create({
@@ -854,7 +891,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: "complete the task given in the system prompt"             
+                        content: "complete the task given in the system prompt"
                     }
                 ]
             });
@@ -869,15 +906,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessage",{
+            await emitSocketEvent(userId.toString(), "newMessageSysDes", {
                 newMessage
             })
 
             //dont need anything like rate or finish cuz it is the exec layer all is either question or wrap up
         }
-        else if ( job.name === "rateForMessage"){
+        else if (job.name === "rateForMessage") {
             const { interviewId, userId, questionId } = job.data;
-            
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -888,10 +925,10 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
@@ -900,7 +937,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId,
-                questionType:"SystemDesign",
+                questionType: "SystemDesign",
                 difficulty: question.difficulty
             }).sort({ attemptNumber: -1 })
 
@@ -909,16 +946,16 @@ const interviewWorker = new Worker("interview", async (job) => {
                 userId,
                 questionId
             }).sort({ createdAt: -1 })
-            .limit(30)
-            .lean();
+                .limit(30)
+                .lean();
 
             previousMessages.reverse()
 
             const chatContext = previousMessages.map((m) => `${m.sentBy}:${m.message}`).join("\n");
 
             const lastUser = previousMessages
-            .filter(m => m.sentBy === "user")
-            .slice(-1)[0]?.message;
+                .filter(m => m.sentBy === "user")
+                .slice(-1)[0]?.message;
 
 
             const ratingSystemPrompt = `
@@ -973,7 +1010,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const hiddenGuide = question.correctAnswerFlow
-                .sort((a,b) => a.step - b.step)
+                .sort((a, b) => a.step - b.step)
                 .map(s => `${s.title}: ${s.approach}`)
                 .join("\n");
 
@@ -982,7 +1019,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: ratingSystemPrompt   
+                        content: ratingSystemPrompt
                     },
                     {
                         role: "user",
@@ -994,20 +1031,20 @@ const interviewWorker = new Worker("interview", async (job) => {
                             
                             Previous conversation: ${chatContext}
                            
-                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5 }
+                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
                         `
-                    
+
                     }
                 ]
-            }); 
-            
+            });
+
             const raw = decision.choices[0].message.content.trim();
 
             // extract number safely
             const match = raw.match(/-?\d+(\.\d+)?/);
             let delta = match ? parseFloat(match[0]) : 0;
             delta = Math.max(-1, Math.min(1, delta));
-            if (prevSubmission){
+            if (prevSubmission) {
                 const current = prevSubmission ? prevSubmission.totalPoint : 5;
 
                 // dynamic scaling
@@ -1017,9 +1054,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                 let adjustedDelta;
 
                 if (delta > 0) {
-                    adjustedDelta = delta * ( gainFactor * 1.2 );
+                    adjustedDelta = delta * (gainFactor * 1.2);
                 } else {
-                    adjustedDelta = delta * ( lossFactor * 1.5 );
+                    adjustedDelta = delta * (lossFactor * 1.5);
                 }
 
 
@@ -1033,9 +1070,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                     questionId,
                     questionType: "SystemDesign",
                     difficulty: question.difficulty
-                },{
-                    totalPoint: newScore ,
-                    percentageBeaten: Math.round((newScore/10) * 100)
+                }, {
+                    totalPoint: newScore,
+                    percentageBeaten: Math.round((newScore / 10) * 100)
                 })
             } else {
                 const baseScore = 5;
@@ -1050,7 +1087,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     difficulty: question.difficulty,
                     attemptNumber: 1,//one attempt per sysdes not making new  stuff
                     totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore/10)*100)
+                    percentageBeaten: Math.round((newScore / 10) * 100)
                 })
             }
 
@@ -1097,7 +1134,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: feedbackPrompt   
+                        content: feedbackPrompt
                     },
                     {
                         role: "user",
@@ -1113,10 +1150,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                             weakness: ${prevFeedBack.weakness.join("; ")} , 
                             improvement: ${prevFeedBack.improvement.join("; ")}` : ""}
                         `
-                    
+
                     }
                 ]
-            }); 
+            });
 
             const outputForFeedback = feedbackdecision.choices[0].message.content.trim();
 
@@ -1126,21 +1163,21 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId,
-            },{
+            }, {
                 strength: parsed.strengths,
                 weakness: parsed.weaknesses,
                 improvement: parsed.improvements
-            },{
+            }, {
                 upsert: true,
                 new: true
             })
-            
-            
+
+
 
         }
-        else if ( job.name === "startCaseStudy"){
+        else if (job.name === "startCaseStudy") {
             const { interviewId, userId, questionId } = job.data;
-            
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -1151,10 +1188,10 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
@@ -1214,15 +1251,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt   
+                        content: systemPrompt
                     },
                     {
                         role: "user",
-                        content: "start the interview"                 
+                        content: "start the interview"
                     }
                 ]
-            }); 
-            
+            });
+
             const raw = decision.choices[0].message.content.trim();
 
             const newMessage = await CaseChat.create({
@@ -1233,12 +1270,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: raw
             })
 
-            await emitSocketEvent(userId.toString(),"newMessageCaseStudy",{
+            await emitSocketEvent(userId.toString(), "newMessageCaseStudy", {
                 newMessage
             })
 
         }
-        else if ( job.name === "newMessageCase") {
+        else if (job.name === "newMessageCase") {
             const { interviewId, userId, questionId } = job.data;
 
             const result = await validateInterviewQuestionContext({
@@ -1251,17 +1288,17 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
 
             const redisKeyForEnd = `end-case-chat:${interviewId}:${userId}:${questionId}`
 
-            if (await redis.exists(redisKeyForEnd)){
+            if (await redis.exists(redisKeyForEnd)) {
                 const msg = await CaseChat.create({
                     interviewId,
                     userId,
@@ -1270,7 +1307,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     message: "This case is complete. Move to the next one."
                 })
 
-                await emitSocketEvent(userId.toString(),"newMessageCaseStudy",{ newMessage: msg })
+                await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: msg })
                 return;
             }
 
@@ -1368,7 +1405,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: msg
             });
 
-            await emitSocketEvent(userId.toString(),"newMessageCaseStudy",{ newMessage: newMsg });
+            await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: newMsg });
 
             const decisionPrompt = `
                 Return STRICT JSON.
@@ -1404,12 +1441,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: decisionPrompt   
+                        content: decisionPrompt
                     },
                     {
                         role: "user",
                         content: `Previous conversation: ${chatContext}`
-                    
+
                     }
                 ]
             });
@@ -1417,26 +1454,26 @@ const interviewWorker = new Worker("interview", async (job) => {
             const outputRaw = judgeRes.choices[0].message.content.trim();
             const output = JSON.parse(outputRaw);
 
-            if (output.shouldEnd ) {
-                await redis.set(redisKeyForEnd,"1","NX","EX",interview.duration * 60)
+            if (output.shouldEnd) {
+                await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
             }
 
             if (output.shouldRate) {
-                await interviewQueue.add("rateForMessageCase",{
+                await interviewQueue.add("rateForMessageCase", {
                     interviewId,
                     userId,
                     questionId
                 })
             }
 
-            await interviewQueue.add("nextDecisionCase",{
+            await interviewQueue.add("nextDecisionCase", {
                 interviewId,
                 userId,
                 questionId,
                 type: output.nextAction
             })
         }
-        else if ( job.name === "nextDecisionCase"){
+        else if (job.name === "nextDecisionCase") {
             const { interviewId, userId, questionId, type } = job.data;
 
             const result = await validateInterviewQuestionContext({
@@ -1449,23 +1486,23 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
 
             let prevQuestions;
 
-            if ( type === "ask_followup"){
+            if (type === "ask_followup") {
                 prevQuestions = await CaseChat.find({
                     interviewId,
                     userId,
                     questionId
                 }).sort({ createdAt: -1 }).lean();
-            } else { 
+            } else {
                 prevQuestions = await CaseChat.find({
                     interviewId,
                     userId,
@@ -1501,7 +1538,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const hiddenGuide = question.expectedApproach.join("\n");
 
-            const systemPrompt = getCasePromptByType(type,{
+            const systemPrompt = getCasePromptByType(type, {
                 baseContext,
                 hiddenGuide,
                 chatContext
@@ -1516,7 +1553,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: "complete the task given in the system prompt"             
+                        content: "complete the task given in the system prompt"
                     }
                 ]
             });
@@ -1531,15 +1568,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessageCaseStudy",{
+            await emitSocketEvent(userId.toString(), "newMessageCaseStudy", {
                 newMessage
             })
 
         }
-        else if ( job.name === "rateForMessageCase"){
+        else if (job.name === "rateForMessageCase") {
             const { interviewId, userId, questionId } = job.data;
 
-           const result = await validateInterviewQuestionContext({
+            const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
                 questionId,
@@ -1549,10 +1586,10 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
@@ -1577,8 +1614,8 @@ const interviewWorker = new Worker("interview", async (job) => {
             const chatContext = previousMessages.map((m) => `${m.sentBy}:${m.message}`).join("\n");
 
             const lastUser = previousMessages
-            .filter(m => m.sentBy === "user")
-            .slice(-1)[0]?.message;
+                .filter(m => m.sentBy === "user")
+                .slice(-1)[0]?.message;
 
             const ratingSystemPrompt = `
                 You are a strict case interview scoring engine.
@@ -1652,7 +1689,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Return ONLY the number.
                 `;
 
-             const baseContext = `
+            const baseContext = `
                 Title: ${question.title}
 
                 Description:
@@ -1688,7 +1725,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: ratingSystemPrompt   
+                        content: ratingSystemPrompt
                     },
                     {
                         role: "user",
@@ -1699,12 +1736,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                             
                             Previous conversation: ${chatContext}
                            
-                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5 }
+                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
                         `
-                    
+
                     }
                 ]
-            }); 
+            });
 
             const raw = decision.choices[0].message.content.trim();
 
@@ -1712,18 +1749,18 @@ const interviewWorker = new Worker("interview", async (job) => {
             let delta = match ? parseFloat(match[0]) : 0;
             delta = Math.max(-1, Math.min(1, delta));
 
-            if (prevSubmission){
+            if (prevSubmission) {
                 const current = prevSubmission ? prevSubmission.totalPoint : 5;
 
-                const gain = ( 10 - current ) / 10
+                const gain = (10 - current) / 10
                 const loss = current / 10
 
                 let newDelta;
 
-                if (delta > 0 ){
-                    newDelta = delta * ( gain * 1.2 );
+                if (delta > 0) {
+                    newDelta = delta * (gain * 1.2);
                 } else {
-                    newDelta = delta * ( loss * 1.5 );
+                    newDelta = delta * (loss * 1.5);
                 }
 
                 let newScore = current + newDelta;
@@ -1736,9 +1773,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                     questionId,
                     questionType: "CaseStudy",
                     difficulty: question.difficulty
-                },{
-                    totalPoint: newScore ,
-                    percentageBeaten: Math.round((newScore/10) * 100)
+                }, {
+                    totalPoint: newScore,
+                    percentageBeaten: Math.round((newScore / 10) * 100)
                 })
             } else {
                 const baseScore = 5;
@@ -1753,7 +1790,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     difficulty: question.difficulty,
                     attemptNumber: 1,
                     totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore/10)*100)
+                    percentageBeaten: Math.round((newScore / 10) * 100)
                 })
             }
 
@@ -1763,7 +1800,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 questionId
             })
 
-            
+
 
             const feedbackPrompt = `
                 You are a strict case interview evaluator giving feedback.
@@ -1843,7 +1880,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: feedbackPrompt   
+                        content: feedbackPrompt
                     },
                     {
                         role: "user",
@@ -1860,10 +1897,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                             weakness: ${prevFeedBack.weakness.join("; ")} , 
                             improvement: ${prevFeedBack.improvement.join("; ")}` : ""}
                         `
-                    
+
                     }
                 ]
-            }); 
+            });
 
             const outputForFeedback = feedbackdecision.choices[0].message.content.trim();
 
@@ -1873,21 +1910,21 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId
-            },{
+            }, {
                 strength: parsed.strengths,
                 weakness: parsed.weaknesses,
                 improvement: parsed.improvements
-            },{
+            }, {
                 upsert: true,
                 new: true
             })
         }
-        else if ( job.name === "finishInterview"){
+        else if (job.name === "finishInterview") {
             const { interviewId, userId } = job.data
-            const user = await User.findById(userId); 
-            
-            if (!user || user.isDisabled){
-                await emitSocketEvent(userId.toString(),"error",{
+            const user = await User.findById(userId);
+
+            if (!user || user.isDisabled) {
+                await emitSocketEvent(userId.toString(), "error", {
                     message: "User not found or is disabled"
                 })
                 return
@@ -1897,8 +1934,8 @@ const interviewWorker = new Worker("interview", async (job) => {
             const cached = await redis.get(redisKey);
             const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
 
-            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()){
-                await emitSocketEvent(userId.toString(),"error",{
+            if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()) {
+                await emitSocketEvent(userId.toString(), "error", {
                     message: "Interview invalid"
                 })
                 return
@@ -1906,21 +1943,21 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             await Interview.findOneAndUpdate({
                 _id: interviewId
-            },{
+            }, {
                 status: "finished"
             })
 
             await redis.del(redisKey);
 
             //TO_DO : make full analysis report with ai like how he performed what can be done better where he messed up 
-            
+
         }
-        else if ( job.name === "startAiListeningForDSA"){
+        else if (job.name === "startAiListeningForDSA") {
             const { interviewId, userId, questionId } = job.data;
 
             const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
-            if(redis.exists(finishKeyRedis)){
+            if (redis.exists(finishKeyRedis)) {
                 return
             }
 
@@ -1934,19 +1971,19 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             if (!result.ok) {
-            await emitSocketEvent(userId.toString(), "error", {
-                message: result.message
-            });
-            return;
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
             }
 
             const { user, interview, question } = result;
 
             const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
 
-            const lockedBucket = await redis.set(redisKeyForDataBucket,"1","NX","EX",interview.duration * 60)
+            const lockedBucket = await redis.set(redisKeyForDataBucket, "1", "NX", "EX", interview.duration * 60)
 
-            if (!lockedBucket){
+            if (!lockedBucket) {
                 return;
             }
 
@@ -1956,11 +1993,11 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Description: ${question.description}
 
                 example: 
-                ${question.example.map((t) => 
-                    `input: ${t.input} ,
+                ${question.example.map((t) =>
+                `input: ${t.input} ,
                     output: ${t.output} , 
-                    ${t.explanation ? 
-                    `explanation: ${t.explanation}` : 
+                    ${t.explanation ?
+                    `explanation: ${t.explanation}` :
                     ""}
                     `).join("\n")}
             `
@@ -2028,19 +2065,19 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+            await emitSocketEvent(userId.toString(), "newMessageDSA", {
                 newMessage
             })
 
-            
+
         }
-        else if ( job.name === "newDSAMessage"){
-            const {  interviewId, userId, questionId , messageId } = job.data
+        else if (job.name === "newDSAMessage") {
+            const { interviewId, userId, questionId, messageId } = job.data
 
             const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
-            if(redis.exists(finishKeyRedis)){
-                await emitSocketEvent(userId.toString(),"notification",{
+            if (redis.exists(finishKeyRedis)) {
+                await emitSocketEvent(userId.toString(), "notification", {
                     message: "DSA TALK FOR THIS QUESTION IS DONE MOVE TO THE NEXT !"
                 })
                 return
@@ -2075,10 +2112,10 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             let latestMessage = messages.find(m => m._id.toString() === messageId);
 
-            if (!latestMessage){
+            if (!latestMessage) {
                 latestMessage = await dsaChat.findById(messageId)
 
-                if (!latestMessage){
+                if (!latestMessage) {
                     console.log("data message issue in dsa chat new chat")
                     await emitSocketEvent(userId.toString(), "error", {
                         message: "the message not found try again later"
@@ -2091,7 +2128,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const code = await redis.get(redisBucketKey);
 
-            const systemPrompt =` 
+            const systemPrompt = ` 
                 You are an AI interviewer conducting a live DSA interview.
 
                 Your job is NOT to teach. Your job is to evaluate, question, and guide the candidate's thinking like a real interviewer.
@@ -2109,7 +2146,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 ---
 
                 CHAT HISTORY:
-                ${chatContext? chatContext : "No previous messages"}
+                ${chatContext ? chatContext : "No previous messages"}
 
                 ---
 
@@ -2167,7 +2204,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt   
+                        content: systemPrompt
                     },
                     {
                         role: "user",
@@ -2175,10 +2212,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                             Current message from user: ${latestMessage.message}
                             
                         `
-                    
+
                     }
                 ]
-            }); 
+            });
 
             const output = decision.choices[0].message.content.trim();
 
@@ -2190,17 +2227,17 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+            await emitSocketEvent(userId.toString(), "newMessageDSA", {
                 newMessage
             })
 
         }
-        else if ( job.name === "decideNextDecision"){
+        else if (job.name === "decideNextDecision") {
             const { interviewId, userId, questionId } = job.data
 
             const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
-            if(redis.exists(finishKeyRedis)){
+            if (redis.exists(finishKeyRedis)) {
                 return
             }
 
@@ -2226,7 +2263,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;
 
             const mostRecentCode = await redis.get(redisKey)
-            
+
             const history = await redis.get(historyKey)
 
 
@@ -2234,7 +2271,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId
-            }).sort({ createdAt: -1}).limit(30).lean()
+            }).sort({ createdAt: -1 }).limit(30).lean()
 
             const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`).join("\n");
 
@@ -2320,12 +2357,12 @@ const interviewWorker = new Worker("interview", async (job) => {
                 }
                 `;
 
-            const decisionRaw =  await openai.chat.completions.create({
+            const decisionRaw = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt   
+                        content: systemPrompt
                     },
                     {
                         role: "user",
@@ -2334,28 +2371,28 @@ const interviewWorker = new Worker("interview", async (job) => {
                         `
                     }
                 ]
-            }); 
+            });
 
             const decision = decisionRaw.choices[0].message.content.trim();
             let output
             try {
                 output = JSON.parse(decision)
-            } catch (error){
-                console.log(error,"in deciding dsa chat")
+            } catch (error) {
+                console.log(error, "in deciding dsa chat")
                 output = {
                     action: "ASK_FOLLOW_UP",
                     generateFeedback: false
                 }
             }
 
-            await interviewQueue.add("nextDecisionForDSA",{
+            await interviewQueue.add("nextDecisionForDSA", {
                 interviewId,
                 userId,
                 questionId,
                 type: output.action
             })
 
-            if (output.generateFeedback){
+            if (output.generateFeedback) {
                 const feedbackPrompt = `
                     You are a senior FAANG DSA interviewer.
 
@@ -2451,7 +2488,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     messages: [
                         {
                             role: "system",
-                            content: feedbackPrompt   
+                            content: feedbackPrompt
                         },
                         {
                             role: "user",
@@ -2460,11 +2497,11 @@ const interviewWorker = new Worker("interview", async (job) => {
                             `
                         }
                     ]
-                }); 
+                });
 
                 const feedBackRaw = feedbackDecisionRaw.choices[0].message.content.trim()
                 let feedback
-                
+
                 try {
                     feedback = JSON.parse(feedBackRaw)
                 } catch (error) {
@@ -2507,9 +2544,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             }
 
         }
-        else if ( job.name === "nextDecisionForDSA"){
-            const { interviewId, userId, questionId , type} = job.data
-            
+        else if (job.name === "nextDecisionForDSA") {
+            const { interviewId, userId, questionId, type } = job.data
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -2526,10 +2563,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return;
             }
 
-            if (type == 'FINISH'){
+            if (type == 'FINISH') {
                 const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
-                await redis.set(finishKeyRedis,"1","NX","EX",interview.duration * 60)
+                await redis.set(finishKeyRedis, "1", "NX", "EX", interview.duration * 60)
             }
 
             const { user, interview, question } = result;
@@ -2545,28 +2582,28 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId
-            }).sort({ createdAt: -1}).limit(30).lean()
+            }).sort({ createdAt: -1 }).limit(30).lean()
 
-            const chatContext = previousMessages.map( m=> `${m.sentBy} : ${m.message}`).join("\n")
+            const chatContext = previousMessages.map(m => `${m.sentBy} : ${m.message}`).join("\n")
 
-            const systemPrompt = buildDSANextStepPrompt({ type, question, mostRecentCode: code, history, chatContext})
+            const systemPrompt = buildDSANextStepPrompt({ type, question, mostRecentCode: code, history, chatContext })
 
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt   
+                        content: systemPrompt
                     },
                     {
                         role: "user",
                         content: `
                             Generate response
                         `
-                    
+
                     }
                 ]
-            }); 
+            });
 
             const output = decision.choices[0].message.content.trim();
 
@@ -2578,7 +2615,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: output
             })
 
-            await emitSocketEvent(userId.toString(),"newMessageDSA",{
+            await emitSocketEvent(userId.toString(), "newMessageDSA", {
                 newMessage
             })
 
@@ -2649,8 +2686,8 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const feedbackModel =
                 type === "dsa" ? dsaFeedBack :
-                type === "sysDes" ? SysdesFeedback :
-                CaseFeedback;
+                    type === "sysDes" ? SysdesFeedback :
+                        CaseFeedback;
 
             const existing = await feedbackModel.findOne({
                 interviewId,
@@ -2660,21 +2697,21 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             if (existing) return;
 
-        
+
             const submission = await Submission.findOne({
                 interviewId,
                 userId,
                 questionId,
                 questionType:
                     type === "dsa" ? "DSA" :
-                    type === "sysDes" ? "SystemDesign" :
-                    "CaseStudy"
+                        type === "sysDes" ? "SystemDesign" :
+                            "CaseStudy"
             });
 
             const chatModel =
                 type === "dsa" ? dsaChat :
-                type === "sysDes" ? SystemdesignChat :
-                CaseChat;
+                    type === "sysDes" ? SystemdesignChat :
+                        CaseChat;
 
             const chat = await chatModel.find({
                 interviewId,
@@ -2685,7 +2722,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const formatChat = (msgs) =>
                 msgs.map(m => `${m.sentBy}: ${m.message}`).join("\n");
 
-            if (!submission){
+            if (!submission) {
                 console.log("cant find submission for feedback")
                 return
             }
@@ -2732,7 +2769,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     ${question.correctAnswerFlow.map(q => `${q.title}-${q.approach}-${q.step}`).join("\n")}
 
                     evaluation: 
-                    ${question.evaluation.map(q=>`${q.title}:${q.description}:${q.evalType}:weight${q.weight}`).join("\n")}
+                    ${question.evaluation.map(q => `${q.title}:${q.description}:${q.evalType}:weight${q.weight}`).join("\n")}
                     SUBMISSION:
                     ${JSON.stringify(submission)}
 
@@ -2808,15 +2845,15 @@ const interviewWorker = new Worker("interview", async (job) => {
     } catch (error) {
         throw error;
     }
-},{
+}, {
     concurrency: 10,
     connection: redis
 })
 
-interviewWorker.on("completed",(job) => {
-    console.log(`Job ${job.id} completed`)
+interviewWorker.on("completed", (job) => {
+    console.log(`Job ${job.id} ${job.name} completed`)
 })
 
-interviewWorker.on("failed",(job,err) => {
-    console.log(`Job ${job.id} failed with error : ${err}`)
+interviewWorker.on("failed", (job, err) => {
+    console.log(`Job ${job.id} ${job.name}failed with error : ${err}`)
 })

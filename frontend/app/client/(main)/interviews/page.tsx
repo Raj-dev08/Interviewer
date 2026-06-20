@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Trash2  } from "lucide-react";
 import { useInterviewStore } from "@/store/useInterview";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ export default function InterviewsPage() {
     interviews,
     loading,
     getAllInterviews,
+    deleteInterview
   } = useInterviewStore();
 
   useEffect(() => {
@@ -123,8 +124,30 @@ export default function InterviewsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-6 border-t border-zinc-800 pt-4 text-sm text-zinc-400 transition group-hover:text-white">
-                    View Interview →
+                  <div className="mt-6 flex items-center justify-between border-t border-zinc-800 pt-4">
+                    <span className="text-sm text-zinc-400 transition group-hover:text-white">
+                      View Interview →
+                    </span>
+
+                    {interview.status === "scheduled" && (
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+
+                          const confirmed = window.confirm(
+                            "Delete this interview?"
+                          );
+
+                          if (!confirmed) return;
+
+                          await deleteInterview(interview._id);
+                        }}
+                        className="rounded-lg p-2 text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
 
                 </div>
