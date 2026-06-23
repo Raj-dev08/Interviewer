@@ -534,7 +534,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const output = decision.choices[0].message.content;
 
-            console.log(output)
+            // console.log(output)
 
             const newMessage = await SystemdesignChat.create({
                 interviewId,
@@ -752,9 +752,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                 BEHAVIOR:
 
                 - Weak answer → clarification / followup
-                - Decent → go deeper
-                - Strong → move topic or edge cases
+                - Decent → go deeper / appreciate and move or say finished if nothing
+                - Strong → move topic or edge cases / appreciate and move or say finished if nothing
                 - Repeated failure → end
+                - Don't spam messages of the same topic 
 
                 IMPORTANT:
 
@@ -770,7 +771,8 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: `Previous conversation: ${chatHistory}`
+                        content: `Previous conversation: ${chatHistory} 
+                                  Last message executed By ai: ${msg}`
 
                     }
                 ]
