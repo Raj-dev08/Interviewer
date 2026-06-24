@@ -4,6 +4,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "@/lib/api";
 import { useAuthStore } from "./useAuth";
+import { useInterviewFlowStore } from "./useInterviewFlow";
 
 type SysDesMessage = {
     role: "assistant" | "user";
@@ -17,6 +18,8 @@ type SysDesStore = {
     loading: boolean;
     sending: boolean;
     starting: boolean;
+
+
 
     getMessages: (
         interviewId: string,
@@ -51,6 +54,8 @@ export const useSysDesStore = create<SysDesStore>(
         sending: false,
         starting: false,
 
+
+
         getMessages: async (
             interviewId,
             questionId
@@ -79,12 +84,13 @@ export const useSysDesStore = create<SysDesStore>(
             interviewId,
             questionId
         ) => {
-            set({ starting: true });
 
+            set({ starting: true });
             try {
                 const res = await axiosInstance.post(
                     `/submission/${interviewId}/sysdes/${questionId}/start`
                 );
+
 
                 if (res.data.message) {
                     toast.success(res.data.message);
@@ -130,6 +136,7 @@ export const useSysDesStore = create<SysDesStore>(
         ) => {
             set({ sending: true });
 
+            console.log(interviewId, questionId, message)
             try {
                 const res = await axiosInstance.post(
                     `/submission/${interviewId}/sysdes/${questionId}/message`,
@@ -137,6 +144,8 @@ export const useSysDesStore = create<SysDesStore>(
                         message,
                     }
                 );
+
+                console.log(res)
 
                 set({
                     messages: [
@@ -161,8 +170,15 @@ export const useSysDesStore = create<SysDesStore>(
 
             socket.off("newMessageSysDes")
 
-            socket.on("newMessageSysDes", ({ newMessage }: any) => {
-                set((state) => ({ messages: [...state.messages, newMessage] }))
+            socket.on("newMessageSysDes", ({ newMessage, interview, question }: any) => {
+                const { activeQuestionId } = useInterviewFlowStore.getState();
+
+                // console.log(question, newMessage, activeQuestionId)
+
+                if (question._id === activeQuestionId) {
+                    set((state) => ({ messages: [...state.messages, newMessage] }))
+                }
+
             })
         },
 

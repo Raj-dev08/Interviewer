@@ -101,6 +101,8 @@ export default function SystemDesignInterview({
 
         setInput("");
 
+        console.log("hitting", input)
+
         await sendMessage(
             interviewId,
             question._id,

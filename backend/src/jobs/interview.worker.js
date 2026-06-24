@@ -496,7 +496,6 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewQuestionPath: "sysDes"
             });
 
-            console.log(result)
             if (!result.ok) {
                 await emitSocketEvent(userId.toString(), "error", {
                     message: result.message
@@ -519,8 +518,6 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 Keep the tone natural and interview-like, not instructional or overly verbose.
             `
-
-
 
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
@@ -545,7 +542,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await emitSocketEvent(userId.toString(), "newMessageSysDes", {
-                newMessage
+                newMessage,
+                interview,
+                question,
             })
         }
         else if (job.name === "newMessage") {
@@ -580,8 +579,10 @@ const interviewWorker = new Worker("interview", async (job) => {
                     message: "The conversation is finished please move to the next question or topic"
                 })
 
-                await emitSocketEvent(userId.toString(), "newMessage", {
-                    newMessage: sysGeneratedMsg
+                await emitSocketEvent(userId.toString(), "newMessageSysDes", {
+                    newMessage: sysGeneratedMsg,
+                    interview,
+                    question
                 })
 
                 return;
@@ -600,6 +601,17 @@ const interviewWorker = new Worker("interview", async (job) => {
             const chatHistory = previousMessages
                 .map(m => `${m.sentBy === "user" ? "Candidate" : "Interviewer"}: ${m.message}`)
                 .join("\n");
+
+            const lastThree = previousMessages.slice(-3);
+
+            const aiCount = lastThree.filter(m => m.sentBy !== "user").length;
+
+            if (aiCount === 3) {
+                console.log("Skipping action generation: last 3 messages are AI");
+                return;
+            }
+
+            const latestUserMessage = previousMessages.findLast(m => m.sentBy === "user");
 
             const baseContext = `
                 SYSTEM DESIGN INTERVIEW QUESTION
@@ -661,8 +673,11 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 - Ask only ONE question at a time when asking questions.
                 - Never explain full solutions.
+                - Never give answer or justify fully why its true 
+                - Never say anything related to ans or steps if the ans is good just appreciate it
                 - Never behave like a teacher.
                 - Focus on reasoning, trade-offs, scalability, and failure handling.
+                - If you don't have the answer to the question (ex: the user asks for a constraint that doesnt exist) kindly say that metric is not available so based on your ( users ) understanding move forward
                 - Continuously challenge assumptions.
                 - If candidate is vague → force clarification with questions.
                 - If candidate is wrong → do NOT correct directly, instead probe deeper.
@@ -670,7 +685,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 - If candidate is asking for info in the question give it to them but dont layout easily like give them in turns the more the ask the more they get.
                 - Keep responses short and interview-like.
                 - Use Markdown to make the responses look good and structured
-
+                - If the interview is pretty much over and they said to finish it just say "The interview is over you can now move to the next question or topic"    
                 OUT OF SCOPE RULE:
                 If user asks unrelated questions, respond:
                 "Let's stay focused on the system design interview. How would you handle X?"
@@ -688,7 +703,8 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: `Previous conversation: ${chatHistory}`
+                        content: `Previous conversation: ${chatHistory}
+                                    Last message executed by user: ${latestUserMessage.message}`
 
                     }
                 ]
@@ -706,62 +722,71 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await emitSocketEvent(userId.toString(), "newMessageSysDes", {
-                newMessage: newSysDesMessage
+                newMessage: newSysDesMessage,
+                interview,
+                question,
             })
 
             const decisionSystemPrompt = `
                 You are an interview controller engine.
 
-                Your job is to decide what should happen next in a system design interview.
+                Your job is to determine whether the interview should continue with another interviewer action.
 
-                You MUST return STRICT JSON only. No extra text.
+                IMPORTANT:
 
-                OUTPUT FORMAT:
+                The last AI message may already contain a question.
+
+                If the last AI message already asked a question and the candidate has not answered it yet, DO NOT generate another action.
+
+                Return STRICT JSON only.
 
                 {
                     "shouldRate": boolean,
                     "shouldEnd": boolean,
-                    "nextAction": string
+                    "needsNextAction": boolean,
+                    "nextAction": string | null
                 }
 
-                RULES:
+                RULES
 
-                1. ONLY return valid JSON.
-                2. NO extra keys. NO missing keys.
+                1. Rate answers when they contain meaningful content.
 
-                3. "nextAction" MUST be one of:
-                - "ask_followup"
-                - "explore_edge_cases"
-                - "ask_clarification"
-                - "challenge_assumption"
-                - "ask_tradeoffs"
-                - "ask_scaling"
-                - "ask_personal_experience"
-                - "wrap_up"
+                2. needsNextAction=true only when:
+                - The candidate has answered the previous question.
+                - The interviewer should ask something new.
+                - The interview should continue.
 
-                4. "shouldRate" = true ONLY when:
-                - The candidate has given a meaningful answer
+                3. needsNextAction=false when:
+                - The interviewer is already waiting for a candidate response.
+                - No new question should be generated yet.
 
-                5. "shouldEnd" = true ONLY when:
-                - Interview is complete
-                - OR candidate is stuck repeatedly
+                4. shouldEnd=true only when:
+                - Interview objectives are complete.
+                - Candidate is repeatedly unable to answer.
 
-                6. If "shouldEnd" = true:
-                - "nextAction" MUST be "wrap_up"
+                5. If shouldEnd=true:
+                - needsNextAction=true
+                - nextAction="wrap_up"
 
-                BEHAVIOR:
+                6. If needsNextAction=false:
+                - nextAction=null
 
-                - Weak answer → clarification / followup
-                - Decent → go deeper / appreciate and move or say finished if nothing
-                - Strong → move topic or edge cases / appreciate and move or say finished if nothing
-                - Repeated failure → end
-                - Don't spam messages of the same topic 
+                Allowed actions:
+                - ask_followup
+                - explore_edge_cases
+                - ask_clarification
+                - challenge_assumption
+                - ask_tradeoffs
+                - ask_scaling
+                - ask_personal_experience
+                - wrap_up
 
                 IMPORTANT:
-
-                - Never output invalid JSON
-                - Never invent new actions
+                - Never output invalid JSON.
+                - Never add extra text outside JSON.
+                - Always provide a nextAction when needsNextAction is true.
                 `;
+
             const judgeRes = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
@@ -772,33 +797,49 @@ const interviewWorker = new Worker("interview", async (job) => {
                     {
                         role: "user",
                         content: `Previous conversation: ${chatHistory} 
-                                  Last message executed By ai: ${msg}`
+                                  Last message executed By ai: ${msg}
+                                  Latest user message: ${latestUserMessage.message}`
 
                     }
                 ]
             });
 
-            const outputRaw = judgeRes.choices[0].message.content.trim();
-            const output = JSON.parse(outputRaw);
+            const outputRaw = judgeRes.choices[0].message.content.trim() || "";
+            let output;
 
-            if (output.shouldEnd) {
-                await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
+            try {
+                output = JSON.parse(outputRaw);
+                if (output.shouldEnd) {
+                    await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
+                }
+
+                if (output.shouldRate) {
+                    await interviewQueue.add("rateForMessage", {
+                        interviewId,
+                        userId,
+                        questionId
+                    })
+                }
+
+                if (output.needsNextAction) {
+                    await interviewQueue.add("nextDecision", {
+                        interviewId,
+                        userId,
+                        questionId,
+                        type: output.nextAction
+                    })
+                }
+            } catch (err) {
+                console.error(
+                    "Failed to parse decision JSON:",
+                    outputRaw
+                );
+
+                //have a fallback
+                return;
             }
 
-            if (output.shouldRate) {
-                await interviewQueue.add("rateForMessage", {
-                    interviewId,
-                    userId,
-                    questionId
-                })
-            }
 
-            await interviewQueue.add("nextDecision", {
-                interviewId,
-                userId,
-                questionId,
-                type: output.nextAction
-            })
 
         }
         else if (job.name === "nextDecision") {
@@ -909,7 +950,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await emitSocketEvent(userId.toString(), "newMessageSysDes", {
-                newMessage
+                newMessage,
+                interview,
+                question,
             })
 
             //dont need anything like rate or finish cuz it is the exec layer all is either question or wrap up
@@ -1273,7 +1316,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await emitSocketEvent(userId.toString(), "newMessageCaseStudy", {
-                newMessage
+                newMessage,
+                interview,
+                question,
             })
 
         }
@@ -1407,7 +1452,11 @@ const interviewWorker = new Worker("interview", async (job) => {
                 message: msg
             });
 
-            await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: newMsg });
+            await emitSocketEvent(userId.toString(), "newMessageCaseStudy", {
+                newMessage: newMsg,
+                interview,
+                question,
+            });
 
             const decisionPrompt = `
                 Return STRICT JSON.
@@ -1571,7 +1620,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await emitSocketEvent(userId.toString(), "newMessageCaseStudy", {
-                newMessage
+                newMessage,
+                interview,
+                question,
             })
 
         }

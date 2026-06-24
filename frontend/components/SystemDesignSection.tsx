@@ -134,7 +134,7 @@ export default function SystemDesignSection({
 
             {/* RIGHT CHAT PANEL */}
 
-            <div className="w-full md:w-[500px] shrink-0 border-l border-zinc-800 bg-zinc-900">
+            <div className="w-full md:w-[500px] min-h-[60vh] md:h-[calc(100vh-200px)] shrink-0 border-l border-zinc-800 bg-zinc-900">
                 <SystemDesignInterview
                     interviewId={interviewId}
                     question={question}

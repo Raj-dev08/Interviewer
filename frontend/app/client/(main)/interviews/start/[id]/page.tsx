@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, Clock } from "lucide-react";
 import { useInterviewFlowStore } from "@/store/useInterviewFlow";
-import SystemDesignInterview from "@/components/SystemDesignInterview";
-import CaseStudyInterview from "@/components/CaseStudyInterview";
 import SystemDesignSection from "@/components/SystemDesignSection";
 import CaseStudySection from "@/components/CaseStudySection";
 import InterviewNavigation from "@/components/InterviewNavigation";
@@ -18,9 +16,9 @@ export default function InterviewPage() {
     interview,
     loading,
     activeInterviewTime,
+    setActiveQuestionId,
     fetchInterview,
     getRemainingTime,
-    getActiveInterview,
   } = useInterviewFlowStore();
 
 
@@ -70,11 +68,13 @@ export default function InterviewPage() {
     fetchInterview(id);
     getRemainingTime(id);
 
-    const interval = setInterval(() => {
-      getRemainingTime(id);
-    }, 30000);
+    // const interval = setInterval(() => {
+    //   getRemainingTime(id);
+    // }, 30000);
 
-    return () => clearInterval(interval);
+    // return () => clearInterval(interval);
+
+    //think of a better thing cuz this might hang
   }, [id]);
 
   if (loading) {
@@ -128,6 +128,7 @@ export default function InterviewPage() {
           setActiveType={setActiveType}
           selectedQuestion={selectedQuestion}
           setSelectedQuestion={setSelectedQuestion}
+          setActiveQuestionId={setActiveQuestionId}
         />
 
       </div>

@@ -9,6 +9,8 @@ type Props = {
         question: any;
         source: "sysDes" | "case" | "dsa";
     }) => void;
+    setActiveQuestionId: (id: string, type: "dsa" | "sysDes" | "case" | "none") => void;
+
 };
 
 export default function InterviewNavigation({
@@ -17,6 +19,7 @@ export default function InterviewNavigation({
     setActiveType,
     selectedQuestion,
     setSelectedQuestion,
+    setActiveQuestionId
 }: Props) {
     const tabs = [
         {
@@ -57,11 +60,14 @@ export default function InterviewNavigation({
                     (question: any, index: number) => (
                         <button
                             key={question._id}
-                            onClick={() =>
+                            onClick={() => {
                                 setSelectedQuestion({
                                     question,
                                     source: activeType,
                                 })
+
+                                setActiveQuestionId(question._id, activeType);
+                            }
                             }
                             className={`rounded-xl px-4 py-2 text-sm ${selectedQuestion?.question?._id ===
                                 question._id

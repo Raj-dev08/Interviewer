@@ -29,6 +29,11 @@ type InterviewFlowStore = {
   activeInterviewId: string | null,
   activeInterviewTime: number | null,
 
+  activeQuestionId: string | null;
+  activeQuestionType: "dsa" | "sysDes" | "case" | "none";
+
+  setActiveQuestionId: (id: string, type: "dsa" | "sysDes" | "case" | "none") => void;
+
 
   startInterview: (id: string) => Promise<boolean>;
   getRemainingTime: (id: string) => Promise<number | null>;
@@ -48,6 +53,13 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
 
     activeInterviewId: null,
     activeInterviewTime: null,
+
+    activeQuestionId: null,
+    activeQuestionType: "none",
+
+    setActiveQuestionId: (id: string, type: "dsa" | "sysDes" | "case" | "none") => {
+      set({ activeQuestionId: id, activeQuestionType: type });
+    },
 
     startInterview: async (id) => {
       set({ startingInterview: true });
