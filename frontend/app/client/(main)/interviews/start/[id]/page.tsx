@@ -93,6 +93,7 @@ export default function InterviewPage() {
     );
   }
 
+  // console.log(interview)
 
   return (
     <div className="h-screen bg-zinc-950 text-white flex flex-col no-scrollbar">

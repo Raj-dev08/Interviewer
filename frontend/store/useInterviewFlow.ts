@@ -44,7 +44,7 @@ type InterviewFlowStore = {
 };
 
 export const useInterviewFlowStore = create<InterviewFlowStore>(
-  (set) => ({
+  (set, get) => ({
     interview: null,
 
 
@@ -72,6 +72,8 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
         toast.success(
           res.data.message || "Interview started"
         );
+
+        get().getActiveInterview();
 
         return true;
       } catch (err: any) {

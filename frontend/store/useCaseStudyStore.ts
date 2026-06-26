@@ -4,6 +4,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import { axiosInstance } from "@/lib/api";
 import { useAuthStore } from "./useAuth";
+import { useInterviewFlowStore } from "./useInterviewFlow";
 
 type CaseMessage = {
     role: "assistant" | "user";
@@ -24,6 +25,11 @@ type CaseStore = {
     ) => Promise<void>;
 
     startInterview: (
+        interviewId: string,
+        questionId: string
+    ) => Promise<boolean>;
+
+    getStartStatus: (
         interviewId: string,
         questionId: string
     ) => Promise<boolean>;
@@ -98,6 +104,26 @@ export const useCaseStore = create<CaseStore>(
             }
         },
 
+        getStartStatus: async (
+            interviewId,
+            questionId
+        ) => {
+            try {
+                const res = await axiosInstance.get(
+                    `/submission/${interviewId}/case/${questionId}/start`
+                );
+
+                return res.data.started;
+            } catch (err: any) {
+                toast.error(
+                    err?.response?.data?.message ||
+                    "Failed to get start status"
+                );
+
+                return false;
+            }
+        },
+
         sendMessage: async (
             interviewId,
             questionId,
@@ -134,12 +160,19 @@ export const useCaseStore = create<CaseStore>(
 
             if (!socket) return;
 
-            socket.off("newMessageCase");
 
-            socket.on("newMessageCase", ({ newMessage }: any) => {
-                set((state) => ({
-                    messages: [...state.messages, newMessage],
-                }));
+
+            socket.off("newMessageCaseStudy");
+
+            socket.on("newMessageCaseStudy", ({ newMessage, interview, question }: any) => {
+                const { activeQuestionId } = useInterviewFlowStore.getState()
+
+                if (question._id == activeQuestionId) {
+                    set((state) => ({
+                        messages: [...state.messages, newMessage],
+                    }));
+                }
+
             });
         },
 

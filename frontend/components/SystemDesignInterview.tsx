@@ -6,6 +6,7 @@ import {
     Loader2,
     PlayCircle,
     Bot,
+    RefreshCw,
 } from "lucide-react";
 
 import { useSysDesStore } from "@/store/useSystemDesChatStore";
@@ -35,6 +36,7 @@ export default function SystemDesignInterview({
     const [started, setStarted] =
         useState(false);
     const scrollRef = useRef<HTMLDivElement | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
 
@@ -110,21 +112,51 @@ export default function SystemDesignInterview({
         );
     };
 
+    const handleRefresh = async () => {
+        if (!question?._id) return;
+
+        setRefreshing(true);
+
+        try {
+            await getMessages(interviewId, question._id);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     return (
         <div className="flex h-full flex-col">
             <div className="border-b border-zinc-800 p-4">
-                <div className="flex items-center gap-3">
-                    <Bot className="h-5 w-5" />
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Bot className="h-5 w-5" />
 
-                    <div>
-                        <h2 className="font-semibold">
-                            AI Interviewer
-                        </h2>
+                        <div>
+                            <h2 className="font-semibold">
+                                AI Interviewer
+                            </h2>
 
-                        <p className="text-xs text-zinc-500">
-                            System Design Round
-                        </p>
+                            <p className="text-xs text-zinc-500">
+                                System Design Round
+                            </p>
+                        </div>
                     </div>
+
+                    {started && (
+                        <button
+                            onClick={handleRefresh}
+                            disabled={refreshing}
+                            className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm transition hover:bg-zinc-700 disabled:opacity-50"
+                        >
+                            {refreshing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <RefreshCw className="h-4 w-4" />
+                            )}
+
+                            Refresh
+                        </button>
+                    )}
                 </div>
             </div>
             {!started ? (

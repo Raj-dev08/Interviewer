@@ -187,7 +187,7 @@ export const getInterviewByIdAfterStart = async (req, res, next) => { // after t
             },
             {
                 $lookup: {
-                    from: "cases",//mongo stores as lowercase plural so this is the collection name
+                    from: "casestudies",//mongo stores as lowercase plural so this is the collection name
                     localField: "questions.case",
                     foreignField: "_id",
                     as: "questions.case"
@@ -249,7 +249,6 @@ export const getInterviewByIdAfterStart = async (req, res, next) => { // after t
                                 companyTags: "$$q.companyTags",
                                 followUp: "$$q.followUp",
                                 hints: "$$q.hints",
-                                evaluation: "$$q.evaluation"
                             }
                         }
                     },
@@ -268,12 +267,10 @@ export const getInterviewByIdAfterStart = async (req, res, next) => { // after t
                                 type: "$$q.type",
                                 previousContext: "$$q.previousContext",
                                 goal: "$$q.goal",
-                                expectedApproach: "$$q.expectedApproach",
                                 data: "$$q.data",
                                 hints: "$$q.hints",
                                 followUps: "$$q.followUps",
                                 constraints: "$$q.constraints",
-                                evaluation: "$$q.evaluation",
                                 answerFormat: "$$q.answerFormat"
                             }
                         }

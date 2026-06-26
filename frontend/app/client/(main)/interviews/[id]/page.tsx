@@ -75,7 +75,7 @@ export default function InterviewDetailsPage() {
     }
   };
 
-  console.log(interview)
+  // console.log(interview)
 
   if (loading) {
     return (
@@ -120,7 +120,7 @@ export default function InterviewDetailsPage() {
               <h1 className="text-3xl font-bold">
                 {
                   titles[
-                    interview.type
+                  interview.type
                   ]
                 }
               </h1>
@@ -152,7 +152,7 @@ export default function InterviewDetailsPage() {
               <div className="text-2xl font-bold">
                 {
                   titles[
-                    interview.type
+                  interview.type
                   ]
                 }
               </div>

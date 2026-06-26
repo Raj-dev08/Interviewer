@@ -1354,7 +1354,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     message: "This case is complete. Move to the next one."
                 })
 
-                await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: msg })
+                await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: msg, interview, question })
                 return;
             }
 
@@ -1366,79 +1366,145 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             previousMessages.reverse();
 
-            const chatContext = previousMessages.map(m => `${m.sentBy}: ${m.message}`);
+            const chatHistory = previousMessages.map(m => `${m.sentBy === "user" ? "Candidate" : "Interviewer"}: ${m.message}`).join("\n");
 
+            const latestUserMessage = previousMessages.findLast(
+                m => m.sentBy === "user"
+            );
+
+            const lastThree = previousMessages.slice(-3);
+
+            const aiCount = lastThree.filter(
+                m => m.sentBy !== "user"
+            ).length;
+
+            if (aiCount === 3) {
+                console.log("Skipping action generation: last 3 messages are AI");
+                return;
+            }
             const baseContext = `
-                Title: ${question.title}
+                CASE INTERVIEW
+
+                Title:
+                ${question.title}
 
                 Description:
                 ${question.description}
 
-                Context:
+                Business Context:
                 ${question.previousContext}
 
-                Goal:
+                Business Goal:
                 ${question.goal}
 
-                Data:
-                ${question.data.map(d => `${d.label}: ${d.value}`).join("\n")}
+                Business Domain:
+                ${question.domain}
+
+                Case Type:
+                ${question.type}
+
+                Available Data:
+                ${question.data
+                    ?.map(d => `• ${d.label}: ${d.value}`)
+                    .join("\n") || "None"}
 
                 Constraints:
-                ${question.constraints?.join("\n")}
+                ${question.constraints?.join("\n") || "None"}
 
-                Evaluation:
-                ${question.evaluation.map(e => `- ${e.category}: ${e.description} (weight ${e.weight})`).join("\n")}
+                Evaluation Criteria:
+                ${question.evaluation
+                    ?.map(
+                        e =>
+                            `- ${e.category}: ${e.description} (weight ${e.weight})`
+                    )
+                    .join("\n")}
                 `;
 
-            const hiddenGuide = question.expectedApproach.join("\n");
+            const hiddenGuide = `
+                INTERNAL INTERVIEW GUIDE (DO NOT REVEAL)
+
+                Ideal flow:
+
+                ${question.expectedApproach
+                    ?.map((step, i) => `${i + 1}. ${step}`)
+                    .join("\n")}
+                `;
 
             const systemPrompt = `
-                You are a strict case interview interviewer.
+                You are a strict, experienced CASE INTERVIEWER from companies like McKinsey, BCG, Bain or Amazon.
+
+                ====================
+                CASE CONTEXT
+                ====================
 
                 ${baseContext}
 
-                RULES:
+                ====================
+                CONVERSATION
+                ====================
 
-                - Let the candidate lead.
-                - Do NOT give solutions.
-                - Do NOT suggest frameworks directly.
-                - Ask ONE question at a time.
-                - Push for structured thinking.
-                - Ask for assumptions when missing.
-                - Challenge vague answers.
-                - Ask for numbers / estimation when needed.
-                - Keep responses SHORT.
+                ${chatHistory || "No conversation yet."}
 
-                BEHAVIOR:
+                ====================
+                INTERNAL GUIDE
+                ====================
 
-                - Slightly strict
-                - Professional tone
-                - No fluff
-
-                If candidate is weak:
-                → ask clarification
-
-                If decent:
-                → go deeper
-
-                If strong:
-                → introduce complexity or edge case
-
-                If off-topic:
-                → redirect
-
-                Internal guidance (DO NOT reveal):
                 ${hiddenGuide}
 
-                Goal:
-                Evaluate thinking, not correctness.
+                ====================
+                RULES
+                ====================
+
+                - Never reveal the expected approach.
+                - Never solve the case.
+                - Never suggest a framework by name.
+                - Let the candidate drive.
+                - Ask only ONE question at a time.
+                - Push the candidate to think structurally.
+                - Challenge assumptions.
+                - Ask for estimates whenever numbers are missing.
+                - Encourage prioritization instead of random ideas.
+                - If the candidate asks for information that isn't provided,
+                tell them the information isn't available and ask them to state an assumption.
+                - If they ask about existing data, provide only data already available in the prompt.
+                - Do not invent business metrics.
+
+                Candidate quality:
+
+                Weak:
+                • Ask clarification questions.
+
+                Average:
+                • Ask follow-up questions.
+
+                Strong:
+                • Introduce trade-offs, risks and implementation challenges.
+
+                Never become a teacher.
+
+                Never dump multiple questions.
+
+                Keep replies short.
+
+                Use markdown.
+
+                If the interview is clearly finished and candidate wants to finish,
+                reply only:
+
+                "The case interview is complete. You may proceed to the next question."
                 `;
 
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: `Conversation:\n${chatContext}` }
+                    {
+                        role: "user", content: `Conversation:\n
+                        ${chatHistory}
+
+                        Latest candidate response:
+                        ${latestUserMessage?.message || ""}`
+                    }
                 ]
             });
 
@@ -1459,32 +1525,53 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             const decisionPrompt = `
+                You are a case interview controller.
+
                 Return STRICT JSON.
 
                 {
                     "shouldRate": boolean,
                     "shouldEnd": boolean,
-                    "nextAction": string
+                    "needsNextAction": boolean,
+                    "nextAction": string | null
                 }
 
-                Allowed nextAction:
-                - "ask_followup"
-                - "ask_clarification"
-                - "challenge_assumption"
-                - "ask_estimation"
-                - "ask_data"
-                - "deepen_analysis"
-                - "wrap_up"
+                Rules
 
-                Rules:
+                1. Rate meaningful answers.
 
-                - Weak → clarification
-                - Vague → challenge
-                - Good → deepen
-                - Missing numbers → estimation
-                - Repeated struggle → end
+                2. needsNextAction=true only if
+                - interviewer should continue
+                - candidate answered previous question
 
-                If shouldEnd = true → nextAction MUST be "wrap_up"
+                3. needsNextAction=false if
+                - interviewer is already waiting
+                - last AI message already asked something
+
+                4. shouldEnd=true only if
+                - objectives completed
+                - repeated failure
+                - candidate explicitly finishes
+
+                5. If shouldEnd=true
+                needsNextAction=true
+                nextAction="wrap_up"
+
+                Allowed actions
+
+                - ask_followup
+                - ask_clarification
+                - challenge_assumption
+                - ask_estimation
+                - ask_data
+                - deepen_analysis
+                - ask_prioritization
+                - ask_risks
+                - ask_tradeoffs
+                - ask_implementation
+                - wrap_up
+
+                Return JSON only.
                 `;
 
             const judgeRes = await openai.chat.completions.create({
@@ -1496,33 +1583,53 @@ const interviewWorker = new Worker("interview", async (job) => {
                     },
                     {
                         role: "user",
-                        content: `Previous conversation: ${chatContext}`
+                        content: `Previous conversation: ${chatHistory}
+                        Last AI message:
+                        ${msg}
+                        Latest candidate response:
+                        ${latestUserMessage?.message || ""}`
 
                     }
                 ]
             });
 
             const outputRaw = judgeRes.choices[0].message.content.trim();
-            const output = JSON.parse(outputRaw);
+            let output;
 
-            if (output.shouldEnd) {
-                await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
+            try {
+                output = JSON.parse(outputRaw);
+
+                // console.log(output)
+
+                if (output.shouldEnd) {
+                    await redis.set(
+                        redisKeyForEnd,
+                        "1",
+                        "NX",
+                        "EX",
+                        interview.duration * 60
+                    );
+                }
+
+                if (output.shouldRate) {
+                    await interviewQueue.add("rateForMessageCase", {
+                        interviewId,
+                        userId,
+                        questionId
+                    });
+                }
+
+                if (output.needsNextAction) {
+                    await interviewQueue.add("nextDecisionCase", {
+                        interviewId,
+                        userId,
+                        questionId,
+                        type: output.nextAction
+                    });
+                }
+            } catch {
+                console.error("Failed to parse:", outputRaw);
             }
-
-            if (output.shouldRate) {
-                await interviewQueue.add("rateForMessageCase", {
-                    interviewId,
-                    userId,
-                    questionId
-                })
-            }
-
-            await interviewQueue.add("nextDecisionCase", {
-                interviewId,
-                userId,
-                questionId,
-                type: output.nextAction
-            })
         }
         else if (job.name === "nextDecisionCase") {
             const { interviewId, userId, questionId, type } = job.data;
