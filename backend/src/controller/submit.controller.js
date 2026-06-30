@@ -1,13 +1,14 @@
 import Interview from "../model/interview.model.js";
 import { redis } from "../lib/redis.js";
 import { interviewQueue } from "../lib/interview.queue.js";
-import { LANGUAGE_MAP, INJECTION_MARKER } from "./dsa.controller.js";
+import { LANGUAGE_MAP, INJECTION_MARKER, LANGUAGE_EXTENSION_MAP } from "./dsa.controller.js";
 import Submission from "../model/submission.model.js";
 import dsa from "../model/dsa.model.js";
 import SystemDesign from "../model/systemdesign.model.js";
 import SystemdesignChat from "../model/systemdesignchat.model.js";
 import CaseChat from "../model/casechat.model.js";
 import caseStudy from "../model/case.model.js";
+import axios from "axios";
 
 const createSubmission = async ({
     interviewId,
@@ -171,11 +172,11 @@ export const runDSAQuestion = async (req, res, next) => {
             return res.status(400).json({ message: "running code too fast" })
         }
 
-        await interviewQueue.add("decideNextDecision", {
-            interviewId,
-            userId: user._id,
-            questionId
-        })
+        // await interviewQueue.add("decideNextDecision", {
+        //     interviewId,
+        //     userId: user._id,
+        //     questionId
+        // })
 
         const selectedCodeLang = dsaQuestion.codeInAllLangs.find(c => c.lang === language);
         const marker = INJECTION_MARKER[language];
@@ -191,32 +192,38 @@ export const runDSAQuestion = async (req, res, next) => {
         const response = await axios.post(
             process.env.RAPID_URL,
             {
-                source_code: finalCode,
-                language_id: LANGUAGE_MAP[language],
+                language: language,
                 stdin: batchedInput,
-                cpu_time_limit: dsaQuestion.maxTime / 1000,
-                memory_limit: dsaQuestion.maxMemory * 1024
+                files: [
+                    {
+                        name: `solution.${LANGUAGE_EXTENSION_MAP[language]}`,
+                        content: finalCode
+                    }
+                ]
             },
             {
                 headers: {
                     "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-                    "x-rapidapi-host": "judge029.p.rapidapi.com",
+                    "x-rapidapi-host": "onecompiler-apis.p.rapidapi.com",
                     "Content-Type": "application/json"
                 },
                 timeout: 15000
             }
         );
 
+        // console.log(response.data, language, code, finalCode)
+
         if (!response?.data) {
             return res.status(500).json({ message: "Judge API failed" });
         }
 
-        if (response.data.status.id !== 3) {
+
+
+        if (response.data.status !== "success" || response.data.stderr) {
             return res.status(200).json({
                 passed: false,
                 status: response.data.status,
                 stderr: response.data.stderr,
-                compile_output: response.data.compile_output,
             });
         }
 

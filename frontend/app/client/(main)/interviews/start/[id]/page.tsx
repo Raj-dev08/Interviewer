@@ -7,7 +7,7 @@ import { useInterviewFlowStore } from "@/store/useInterviewFlow";
 import SystemDesignSection from "@/components/SystemDesignSection";
 import CaseStudySection from "@/components/CaseStudySection";
 import InterviewNavigation from "@/components/InterviewNavigation";
-
+import DSASection from "@/components/DSAInterview";
 
 export default function InterviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -155,9 +155,11 @@ export default function InterviewPage() {
         ) : (
           <>
             {activeType === "dsa" && selectedQuestion.source == "dsa" && (
-              <div>
-                dsa
-              </div>
+              <DSASection
+                key={selectedQuestion.question._id}
+                interviewId={id}
+                question={selectedQuestion.question}
+              />
             )}
 
             {activeType === "sysDes" && selectedQuestion.source == "sysDes" && (

@@ -8,18 +8,18 @@ export const protectRoute = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         const sessionId = req.headers.sessionid; // get sessionId from headers
-        
-        if (!sessionId ) {
+
+        if (!sessionId) {
             return res.status(401).json({ message: "Please log in" });
         }
 
         if (authHeader && !authHeader.startsWith("Bearer ")) {
             return res.status(401).json({ message: "Unauthorized - no token" });
-        }    
+        }
 
         try {
 
-            if(!authHeader) {
+            if (!authHeader) {
                 const { token, user } = await generateAccessToken(sessionId);
                 res.setHeader("Authorization", `Bearer ${token}`);
                 req.user = user;
@@ -28,14 +28,14 @@ export const protectRoute = async (req, res, next) => {
             }
             const accessToken = authHeader.split(" ")[1];
             const sessionData = await redis.get(`sessionId:${sessionId}`);
-            
+
             if (!sessionData) {
                 return res.status(401).json({ message: "Unauthorized - invalid session . Log in again" });
             }
 
             const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
             const user = await User.findById(decoded.userId).select("-password");
-            
+
             if (!user) {
                 return res.status(401).json({ message: "Unauthorized - user not found" });
             }
@@ -44,20 +44,20 @@ export const protectRoute = async (req, res, next) => {
                 return res.status(401).json({ message: "Unauthorized - token version mismatch. Please log in again" });
             }
 
-            if(decoded.sessionId !== sessionId){
+            if (decoded.sessionId !== sessionId) {
                 return res.status(401).json({ message: "Unauthorized session mismatch" });
             }
 
-            
+
             const success = await verifyAndSyncSubscription(user._id.toString());
 
-            if(!success){
-                return res.status(400).json({ message: "Payment check failed try again later"})
+            if (!success) {
+                return res.status(400).json({ message: "Payment check failed try again later" })
             }
 
             req.user = user; // attach user to request object
             req.sessionId = decoded.sessionId;
-            
+
 
             return next();
         } catch (err) {
@@ -71,8 +71,8 @@ export const protectRoute = async (req, res, next) => {
 
                 const success = await verifyAndSyncSubscription(user._id.toString());
 
-                if(!success){
-                    return res.status(400).json({ message: "Payment check failed try again later"})
+                if (!success) {
+                    return res.status(400).json({ message: "Payment check failed try again later" })
                 }
 
                 req.user = user;
@@ -81,10 +81,10 @@ export const protectRoute = async (req, res, next) => {
                 return next();
             } catch (error) {
                 return res.status(401).json({ message: error.message || "Unauthorized - could not refresh token" });
-            }    
+            }
         }
     } catch (error) {
         console.log("Error in protectRoute middleware", error.message);
-        res.status(500).json({message: "Internal Server Error"});
+        res.status(500).json({ message: "Internal Server Error" });
     }
 }

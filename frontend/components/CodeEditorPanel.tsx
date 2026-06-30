@@ -44,7 +44,7 @@ export default function CodeEditor({
       {/* EDITOR */}
       <div className="flex-1 min-h-[300px]">
         <Editor
-          height="300px"
+          height="100%"
           language={language}
           value={value}
           onChange={(v) => onChange(v || "")}
@@ -72,7 +72,7 @@ export default function CodeEditor({
 
             renderLineHighlight: "all",
             smoothScrolling: true,
-            
+
 
             overviewRulerLanes: 2,
           }}
