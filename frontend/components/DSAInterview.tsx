@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useDSAExecStore } from "@/store/useDSAExecStore";
+import { useDSAChatStore } from "@/store/useDSAChatStore";
+import FloatingChatWidget from "./DSAChatWidget";
 
 import {
     Clock,
@@ -12,9 +14,12 @@ import {
     MemoryStick,
     CheckCircle2,
     XCircle,
+    Bot,
+    Sparkles,
 } from "lucide-react";
 
 import CodeEditor from "./CodeEditorPanel";
+import { motion } from "framer-motion";
 
 type Props = {
     interviewId: string;
@@ -114,8 +119,11 @@ export default function DSASection({
         runResult,
         clearResults,
     } = useDSAExecStore();
+    const { getStartStatus, startInterview, starting } = useDSAChatStore()
 
     const [selectedCase, setSelectedCase] = useState(0);
+    const [open, setOpen] = useState(false)
+    const [dsaChatOpen, setDsaChatOpen] = useState(true)
 
     useEffect(() => {
         if (!question) return;
@@ -134,9 +142,55 @@ export default function DSASection({
         clearResults();
     }, [question]);
 
+    useEffect(() => {
+        const init = async () => {
+            if (!question._id || !interviewId) return
+            const canOpen = await getStartStatus(interviewId, question._id)
+            if (!canOpen) return
+
+            if (canOpen) {
+                setOpen(true)
+            }
+        }
+        init()
+    }, [])
+
+
+    if (!open) {
+        return (
+            <div className="h-full flex justify-center items-center">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 sm:p-8 text-center">
+                    <h1 className="text-xl sm:text-2xl font-bold mb-6">
+                        DSA Question Not Started
+                    </h1>
+                    <p className="text-zinc-400 mb-8 max-w-md mx-auto text-sm sm:text-base">
+                        Please click the "Start Interview" before proceeding.
+                    </p>
+                    <button
+                        onClick={async () => {
+                            const success = await startInterview(interviewId, question._id)
+                            if (success) setOpen(true)
+                        }}
+                        disabled={starting}
+                        className="px-6 py-3 sm:px-8 sm:py-4 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-semibold transition-colors"
+                    >
+                        {starting ? "Starting..." : "Start Interview"}
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+
     return (
         <div className="h-full no-scrollbar flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
             {/* LEFT PANEL */}
+            <FloatingChatWidget
+                interviewId={interviewId}
+                questionId={question._id}
+                open={dsaChatOpen}
+                setOpen={setDsaChatOpen}
+            />
 
             <div className="flex-1 lg:overflow-y-auto no-scrollbar border-b lg:border-b-0 lg:border-r border-zinc-800">
                 <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
@@ -637,6 +691,38 @@ export default function DSASection({
                     )}
                 </div>
             </div>
+
+            {!dsaChatOpen && (
+                <motion.button
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setDsaChatOpen(true)}
+                    className="group fixed bottom-6 right-6 z-50"
+                >
+                    {/* Outer Glow */}
+                    <div className="absolute inset-0 rounded-full bg-blue-500/25 blur-2xl group-hover:bg-blue-500/40 transition-all duration-500 animate-pulse" />
+
+                    {/* Rotating Ring */}
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{
+                            repeat: Infinity,
+                            duration: 10,
+                            ease: "linear",
+                        }}
+                        className="absolute -inset-1 rounded-full border border-blue-500/30 border-dashed"
+                    />
+
+                    {/* Button */}
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-zinc-700 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black shadow-[0_0_35px_rgba(59,130,246,0.25)] backdrop-blur-xl transition-all duration-300 group-hover:border-blue-500/60 group-hover:shadow-[0_0_45px_rgba(59,130,246,0.45)]">
+                        <Bot className="h-7 w-7 text-blue-400 transition-transform duration-300 group-hover:scale-110" />
+
+                        <Sparkles className="absolute right-2 top-2 h-3.5 w-3.5 text-blue-300 animate-pulse" />
+                    </div>
+                </motion.button>
+            )}
         </div>
     );
 }

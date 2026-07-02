@@ -50,7 +50,7 @@ export const useDSAExecStore = create<DSAStore>((set) => ({
                 }
             );
 
-            console.log(res)
+
 
             set({
                 runResult: res.data,

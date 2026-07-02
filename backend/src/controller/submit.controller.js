@@ -165,6 +165,14 @@ export const runDSAQuestion = async (req, res, next) => {
             return res.status(400).json({ message: `${language} is not available for this question.` });
         }
 
+        const redisDSAKey = `DSA:start:${questionId}:${interviewId}:${user._id}`
+
+        const startLock = await redis.get(redisDSAKey)
+
+        if (!startLock) {
+            return res.status(400).json({ message: "You have not started the DSA question yet" })
+        }
+
         const redisLockKey = `dsa-run-lock:${user._id}-${interviewId}-${questionId}`
         const locked = await redis.set(redisLockKey, "1", "EX", 5, "NX")
 
@@ -282,6 +290,9 @@ export const runDSAQuestion = async (req, res, next) => {
             passed: clean(actualOutputs[i]) === clean(tc.output)
         }));
 
+        const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${user._id}:${questionId}`
+        await redis.set(redisKeyForDataBucket, code, "EX", interview.duration * 60)
+
         return res.status(200).json({
             passed: results.every(r => r.passed),
             results,
@@ -358,6 +369,14 @@ export const submitDSAQuestion = async (req, res, next) => {
 
         if (!belongsToInterview) {
             return res.status(404).json({ message: "Question not found in interview" });
+        }
+
+        const redisDSAKey = `DSA:start:${questionId}:${interviewId}:${user._id}`
+
+        const startLock = await redis.get(redisDSAKey)
+
+        if (!startLock) {
+            return res.status(400).json({ message: "You have not started the DSA question yet" })
         }
 
         const dsaQuestion = await dsa.findById(questionId);
