@@ -97,6 +97,7 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
         if (res.data.message) {
           toast.success(res.data.message);
         }
+        set({ activeInterviewTime: res.data.remainingTime })
 
         return null;
       } catch (err: any) {

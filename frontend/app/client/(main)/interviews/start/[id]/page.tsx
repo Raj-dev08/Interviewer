@@ -68,14 +68,58 @@ export default function InterviewPage() {
     fetchInterview(id);
     getRemainingTime(id);
 
-    // const interval = setInterval(() => {
-    //   getRemainingTime(id);
-    // }, 30000);
-
-    // return () => clearInterval(interval);
-
-    //think of a better thing cuz this might hang
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let interval: NodeJS.Timeout;
+
+    const scheduleFetch = () => {
+      const t = displayTime;
+
+      // near end: fast polling
+      if (t <= 10) {
+        interval = setTimeout(() => {
+          getRemainingTime(id);
+          scheduleFetch();
+        }, 5000);
+      }
+
+      // mid range: slow polling
+      else if (t <= 60) {
+        interval = setTimeout(() => {
+          getRemainingTime(id);
+          scheduleFetch();
+        }, 30000);
+      }
+
+      // long time left: very slow polling
+      else if (t <= 120) {
+        interval = setTimeout(() => {
+          getRemainingTime(id);
+          scheduleFetch();
+        }, 60000);
+      }
+
+      else if (t <= 600) {
+        interval = setTimeout(() => {
+          getRemainingTime(id);
+          scheduleFetch();
+        }, 300000);
+      }
+      else {
+        interval = setTimeout(() => {
+          getRemainingTime(id);
+          scheduleFetch();
+        }, 600000);
+      }
+    };
+
+    scheduleFetch();
+
+    return () => clearTimeout(interval);
+  }, [id, displayTime]);
 
   if (loading) {
     return (

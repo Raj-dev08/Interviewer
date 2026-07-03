@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { useSysDesStore } from "@/store/useSystemDesChatStore";
+import { useAuthStore } from "@/store/useAuth";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -20,6 +21,7 @@ export default function SystemDesignInterview({
     interviewId: string;
     question: any;
 }) {
+    const { socket, connectSocket } = useAuthStore()
     const {
         messages,
         loading,
@@ -39,20 +41,22 @@ export default function SystemDesignInterview({
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
+        subscribetoMessages();
+    }, []);
+
+    useEffect(() => {
 
         const init = async () => {
+            if (!question?._id) return;
             const canStart = await getStartStatus(
                 interviewId,
                 question._id
             );
-            if (!question?._id) return;
             if (!canStart) return
 
             if (canStart) {
                 setStarted(true)
             }
-
-            subscribetoMessages()
 
             getMessages(
                 interviewId,
@@ -118,7 +122,13 @@ export default function SystemDesignInterview({
         setRefreshing(true);
 
         try {
+            if (!socket.connected) {
+                connectSocket()
+            }
+
+            subscribetoMessages();
             await getMessages(interviewId, question._id);
+
         } finally {
             setRefreshing(false);
         }

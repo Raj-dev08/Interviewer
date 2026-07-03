@@ -19,7 +19,7 @@ export const startInterview = async (req, res, next) => {
             return res.status(400).json({ message: "Id is required" })
         }
 
-        const redisLock = `interview-started-for:${id}`
+        const redisLock = `interview-started-for:${id}`// the absolute lock
         const redisKeyForInterView = `User-current-interview:${user._id}`
 
 
@@ -30,7 +30,7 @@ export const startInterview = async (req, res, next) => {
             redisKeyForInterView,
             id,
             "EX",
-            interview.duration * 60 + 300, // 300 seconds cooldown time just in case the user close the browser
+            interview.duration * 60 + 30, // 30 seconds cooldown time just in case the user close the browser
             "NX"
         );
 
@@ -124,6 +124,8 @@ export const getRemainingTime = async (req, res, next) => { //only for checking 
 
             return res.status(200).json({ message: "Interview completed successfully. Your results will be sent to your email" })
         }
+
+        return res.status(200).json({ remainingTime: ttl })
     } catch (error) {
         next(error)
     }
@@ -291,6 +293,10 @@ export const getInterviewByIdAfterStart = async (req, res, next) => { // after t
     }
 }
 
+//unnecessary remove it later use the previous set time to the fullest effect
+//it is basically there so in future if multiple interview at a time we can but like basically 
+//the interview id one is for the main thing like interview time and this is for which interview user has
+//so without user interview it wont work
 export const activeInterView = async (req, res, next) => {
     try {
         const { user } = req
@@ -309,7 +315,30 @@ export const activeInterView = async (req, res, next) => {
 
         const ttl = await redis.ttl(redisKeyForInterView)
 
-        return res.status(200).json({ interviewId: interview, remainingTime: Math.floor(ttl - 300) })
+        return res.status(200).json({ interviewId: interview, remainingTime: Math.floor(ttl - 30) })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const finishInterview = async (req, res, next) => {
+    try {
+        const { user } = req
+
+        if (user.isDisabled) {
+            return res.status(403).json({ message: "User is disabled" })
+        }
+
+        const { id } = req.params
+
+        //end logic
+        const interview = await Interview.findByIdAndUpdate(
+            id,
+            { status: "completed" },
+            { new: true }
+        )
+
+        return res.status(200).json({ message: "Interview ended succesfully" })
     } catch (error) {
         next(error)
     }

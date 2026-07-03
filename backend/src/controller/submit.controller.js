@@ -769,6 +769,7 @@ export const startSysDes = async (req, res, next) => {
                 await interviewQueue.add("finishInterview", {
                     interviewId,
                     userId: user._id,
+                    questionId
                 })
                 return res.status(400).json({ message: "Interview has not started yet" })
             }
@@ -854,7 +855,7 @@ export const getStartStatusSysDes = async (req, res, next) => {
 
 export const messageSysDes = async (req, res, next) => {
     try {
-        console.log("hit")
+
         const { user } = req
 
         if (user.isDisabled) {
@@ -862,11 +863,10 @@ export const messageSysDes = async (req, res, next) => {
         }
 
 
-        console.log("start with the req")
+
         const { interviewId, questionId } = req.params
         const { message } = req.body
 
-        console.log(message)
         if (!interviewId || !questionId || !message) {
             return res.status(400).json({ message: "Missing required fields." });
         }
@@ -891,11 +891,11 @@ export const messageSysDes = async (req, res, next) => {
                 return res.status(400).json({ message: "Interview is not started or is finished" });
             }
             else {
-                await interviewId.add("finishInterview", {
+                await interviewQueue.add("finishInterview", {
                     interviewId,
                     userId: user._id,
                 })
-                return res.status(400).json({ message: "Interview has not started yet" })
+                return res.status(400).json({ message: "Interview is over" })
             }
         }
 
@@ -941,7 +941,7 @@ export const messageSysDes = async (req, res, next) => {
             })
         }
 
-        console.log("done with the req")
+
         return res.status(200).json({ message: "Message sent successfully", newMessage });
     } catch (error) {
         next(error)

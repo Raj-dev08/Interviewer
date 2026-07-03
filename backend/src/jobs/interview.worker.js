@@ -570,7 +570,8 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const redisKeyForEnd = `end-interview-chat:${interviewId}:${userId}:${questionId}`
 
-            if (await redis.exists(redisKeyForEnd)) {
+            const isFinished = await redis.exists(redisKeyForEnd)
+            if (isFinished) {
                 const sysGeneratedMsg = await SystemdesignChat.create({
                     interviewId,
                     userId,
@@ -587,6 +588,8 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 return;
             }
+
+
 
 
             const previousMessages = await SystemdesignChat.find({
@@ -694,17 +697,77 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Evaluate thinking depth, not correctness. Drive toward a complete system design step-by-step.
                 `;
 
+            const redisKeyForExpiry = `User-current-interview:${userId}`
+
+            const ttl = await redis.ttl(redisKeyForExpiry)
+
+            let isInterviewWrapUp = false;
+            if (ttl < 40) {
+                isInterviewWrapUp = true
+            }
+
+
+            const wrapUpPrompt = `
+                You are a strict, professional SYSTEM DESIGN INTERVIEWER.
+
+                ====================
+                INTERVIEW CONTEXT
+                ====================
+
+                ${baseContext}
+
+                ====================
+                CONVERSATION HISTORY
+                ====================
+
+                ${chatHistory || "No previous conversation yet."}
+
+                ====================
+                INTERNAL GUIDE
+                ====================
+
+                ${hiddenGuide}
+
+                ====================
+                RULES
+                ====================
+
+                The interview has reached its wrap-up stage.
+
+                - Read the entire conversation before responding.
+                - Do NOT ask any new technical or follow-up questions.
+                - Do NOT continue evaluating the candidate.
+                - Do NOT reveal the expected solution, hidden guide, evaluation criteria, score, or whether the candidate was correct.
+                - Do NOT provide interview feedback.
+
+                If the candidate has already indicated they want to finish the interview (examples: "finish", "end it", "wrap up", "that's all", "you can end it"), politely conclude the interview.
+
+                Otherwise:
+                - Ask if they have any final thoughts or questions.
+                - Then ask whether they would like to finish the interview themselves or would like you to conclude it on their behalf.
+
+                If the candidate confirms they want to end the interview, conclude with something similar to:
+
+                "Thank you for your time today. This concludes the interview. You may now proceed to the next question or finish the interview."
+
+                Keep the response short, natural, professional, and conversational.
+
+                Return ONLY the message that should be sent to the candidate.
+                `;
+
+
+
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
                     {
                         role: "system",
-                        content: systemPrompt
+                        content: isInterviewWrapUp ? wrapUpPrompt : systemPrompt
                     },
                     {
                         role: "user",
                         content: `Previous conversation: ${chatHistory}
-                                    Last message executed by user: ${latestUserMessage.message}`
+                                Last message executed by user: ${latestUserMessage.message}`
 
                     }
                 ]
@@ -727,6 +790,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 question,
             })
 
+            if (isInterviewWrapUp) {
+                await interviewQueue.add("rateForMessage", {
+                    interviewId,
+                    userId,
+                    questionId
+                })
+                return;
+            }
+
             const decisionSystemPrompt = `
                 You are an interview controller engine.
 
@@ -741,7 +813,6 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Return STRICT JSON only.
 
                 {
-                    "shouldRate": boolean,
                     "shouldEnd": boolean,
                     "needsNextAction": boolean,
                     "nextAction": string | null
@@ -749,26 +820,24 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 RULES
 
-                1. Rate answers when they contain meaningful content.
-
-                2. needsNextAction=true only when:
+                1. needsNextAction=true only when:
                 - The candidate has answered the previous question.
                 - The interviewer should ask something new.
                 - The interview should continue.
 
-                3. needsNextAction=false when:
+                2. needsNextAction=false when:
                 - The interviewer is already waiting for a candidate response.
                 - No new question should be generated yet.
 
-                4. shouldEnd=true only when:
+                3. shouldEnd=true only when:
                 - Interview objectives are complete.
                 - Candidate is repeatedly unable to answer.
 
-                5. If shouldEnd=true:
+                4. If shouldEnd=true:
                 - needsNextAction=true
                 - nextAction="wrap_up"
 
-                6. If needsNextAction=false:
+                5. If needsNextAction=false:
                 - nextAction=null
 
                 Allowed actions:
@@ -809,17 +878,19 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             try {
                 output = JSON.parse(outputRaw);
+
                 if (output.shouldEnd) {
                     await redis.set(redisKeyForEnd, "1", "NX", "EX", interview.duration * 60)
                 }
 
-                if (output.shouldRate) {
-                    await interviewQueue.add("rateForMessage", {
-                        interviewId,
-                        userId,
-                        questionId
-                    })
-                }
+
+                await interviewQueue.add("rateForMessage", {
+                    interviewId,
+                    userId,
+                    questionId
+                })
+
+
 
                 if (output.needsNextAction) {
                     await interviewQueue.add("nextDecision", {
@@ -835,9 +906,16 @@ const interviewWorker = new Worker("interview", async (job) => {
                     outputRaw
                 );
 
+                await interviewQueue.add("rateForMessage", {
+                    interviewId,
+                    userId,
+                    questionId
+                })
+
                 //have a fallback
                 return;
             }
+
 
 
 
@@ -863,6 +941,18 @@ const interviewWorker = new Worker("interview", async (job) => {
             const { user, interview, question } = result;
 
             let previousMessages;
+            const redisKeyForEnd = `end-interview-chat:${interviewId}:${userId}:${questionId}`
+
+            const isFinished = await redis.exists(redisKeyForEnd)
+            if (isFinished) {
+                await interviewQueue.add("rateForMessage", {
+                    interviewId,
+                    userId,
+                    questionId
+                })
+
+                return
+            }
 
             if (type === "ask_followup") {
                 previousMessages = await SystemdesignChat.find({
@@ -925,6 +1015,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 lastAiMessage
             });
 
+
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
@@ -960,6 +1051,7 @@ const interviewWorker = new Worker("interview", async (job) => {
         else if (job.name === "rateForMessage") {
             const { interviewId, userId, questionId } = job.data;
 
+
             const result = await validateInterviewQuestionContext({
                 userId,
                 interviewId,
@@ -976,7 +1068,9 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return;
             }
 
+
             const { user, interview, question } = result;
+
 
             const prevSubmission = await Submission.findOne({
                 interviewId,
@@ -986,14 +1080,17 @@ const interviewWorker = new Worker("interview", async (job) => {
                 difficulty: question.difficulty
             }).sort({ attemptNumber: -1 })
 
+
+
             const previousMessages = await SystemdesignChat.find({
                 interviewId,
                 userId,
                 questionId
             }).sort({ createdAt: -1 })
-                .limit(30)
+                .limit(10)
                 .lean();
 
+            //approx 5 convo for 3 so better context window 
             previousMessages.reverse()
 
             const chatContext = previousMessages.map((m) => `${m.sentBy}:${m.message}`).join("\n");
@@ -1059,82 +1156,105 @@ const interviewWorker = new Worker("interview", async (job) => {
                 .map(s => `${s.title}: ${s.approach}`)
                 .join("\n");
 
-            const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
-                messages: [
-                    {
-                        role: "system",
-                        content: ratingSystemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: `
-                            Base context of question: ${baseContext}
-                            hidden guide: ${hiddenGuide}
+
+            let delta;
+
+            //to save compute and ai cost we dont run rate on all of them but we make sure also that the quality is good too by checking each 3 messages
+            const redisKeyForRatingNumbers = `interview-rating-count:${interviewId}:${userId}:${questionId}`
+            const redisKeyForPreviousDelta = `interview-previous-delta:${interviewId}:${userId}:${questionId}`
+
+            const count = await redis.incr(redisKeyForRatingNumbers);
+
+            if (count === 1) {
+                // Set expiry only the first time
+                await redis.expire(redisKeyForRatingNumbers, interview.duration * 60);
+            }
+
+            const isPreviousDelta = await redis.get(redisKeyForPreviousDelta);
+
+            if (count >= 3 || !isPreviousDelta) {
+
+                const decision = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: ratingSystemPrompt
+                        },
+                        {
+                            role: "user",
+                            content: `
+                                Base context of question: ${baseContext}
+                                hidden guide: ${hiddenGuide}
+                                
+                                lastest user answer: ${lastUser}   
+                                
+                                Previous conversation: ${chatContext}
                             
-                            lastest user answer: ${lastUser}   
-                            
-                            Previous conversation: ${chatContext}
-                           
-                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
-                        `
+                                Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
+                            `
 
-                    }
-                ]
-            });
+                        }
+                    ]
+                });
 
-            const raw = decision.choices[0].message.content.trim();
+                const raw = decision.choices[0].message.content.trim();
 
-            // extract number safely
-            const match = raw.match(/-?\d+(\.\d+)?/);
-            let delta = match ? parseFloat(match[0]) : 0;
-            delta = Math.max(-1, Math.min(1, delta));
-            if (prevSubmission) {
-                const current = prevSubmission ? prevSubmission.totalPoint : 5;
-
-                // dynamic scaling
-                const gainFactor = (10 - current) / 10;   // harder to grow near 10
-                const lossFactor = current / 10;          // harsher penalty near top
-
-                let adjustedDelta;
-
-                if (delta > 0) {
-                    adjustedDelta = delta * (gainFactor * 1.2);
-                } else {
-                    adjustedDelta = delta * (lossFactor * 1.5);
+                try {
+                    let num = parseFloat(raw)
+                    delta = num
+                } catch {
+                    delta = 0
                 }
 
+                await redis.set(redisKeyForPreviousDelta, delta.toString(), "EX", interview.duration * 60);
+                await redis.del(redisKeyForRatingNumbers);
+            } else {
+                const previousDelta = await redis.get(redisKeyForPreviousDelta);
+                const newDelta = parseFloat(previousDelta)
 
-                let newScore = current + adjustedDelta;
+                if (!isNaN(newDelta)) {
+                    delta = newDelta / 2;
+                    await redis.set(redisKeyForPreviousDelta, delta.toString(), "EX", interview.duration * 60);
+                } else {
+                    delta = 0;
+                }
+            }
 
-                newScore = Math.max(0, Math.min(10, newScore));
 
-                await Submission.findOneAndUpdate({
+            // extract number safely
+
+            delta = Math.max(-1, Math.min(1, delta));
+
+            const baseScore = prevSubmission ? prevSubmission.totalPoint : 5;
+
+            const newScore = Math.max(0, Math.min(10, baseScore + delta));
+
+            const submission = await Submission.findOneAndUpdate(
+                {
                     interviewId,
                     userId,
                     questionId,
                     questionType: "SystemDesign",
                     difficulty: question.difficulty
-                }, {
-                    totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore / 10) * 100)
-                })
-            } else {
-                const baseScore = 5;
-
-                const newScore = Math.max(0, Math.min(10, baseScore + delta));
-
-                const newSubmission = await Submission.create({
-                    interviewId,
-                    userId,
-                    questionId,
-                    questionType: "SystemDesign",
-                    difficulty: question.difficulty,
-                    attemptNumber: 1,//one attempt per sysdes not making new  stuff
-                    totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore / 10) * 100)
-                })
-            }
+                },
+                {
+                    $setOnInsert: {
+                        interviewId,
+                        userId,
+                        questionId,
+                        questionType: "SystemDesign",
+                        difficulty: question.difficulty,
+                        attemptNumber: 1,
+                        totalPoint: newScore,
+                        percentageBeaten: Math.round((newScore / 10) * 100)
+                    }
+                },
+                {
+                    upsert: true,
+                    new: true
+                }
+            );
 
             const prevFeedBack = await SysdesFeedback.findOne({
                 interviewId,
@@ -1200,24 +1320,32 @@ const interviewWorker = new Worker("interview", async (job) => {
                 ]
             });
 
+
+
             const outputForFeedback = feedbackdecision.choices[0].message.content.trim();
 
-            const parsed = JSON.parse(outputForFeedback);
+            let parsed
+            try {
+                parsed = JSON.parse(outputForFeedback);
+            } catch (error) {
+                console.log(error)
+                //we wont do anything with the parsed 
+            }
 
-            await SysdesFeedback.findOneAndUpdate({
-                interviewId,
-                userId,
-                questionId,
-            }, {
-                strength: parsed.strengths,
-                weakness: parsed.weaknesses,
-                improvement: parsed.improvements
-            }, {
-                upsert: true,
-                new: true
-            })
-
-
+            if (parsed) {
+                const feedback = await SysdesFeedback.findOneAndUpdate({
+                    interviewId,
+                    userId,
+                    questionId,
+                }, {
+                    strength: parsed.strengths,
+                    weakness: parsed.weaknesses,
+                    improvement: parsed.improvements
+                }, {
+                    upsert: true,
+                    new: true
+                })
+            }
 
         }
         else if (job.name === "startCaseStudy") {
@@ -2080,7 +2208,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
         }
         else if (job.name === "finishInterview") {
-            const { interviewId, userId } = job.data
+            const { interviewId, userId, questionId } = job.data
             const user = await User.findById(userId);
 
             if (!user || user.isDisabled) {
@@ -2093,6 +2221,10 @@ const interviewWorker = new Worker("interview", async (job) => {
             const redisKey = `ongoingInterview:${interviewId}`;
             const cached = await redis.get(redisKey);
             const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
+
+            const sysDesKey = `sysDes:start:${questionId}:${interviewId}:${userId}`
+            const timeLockForInterview = `interview-started-for:${interviewId}`
+            const userInterview = `User-current-interview:${userId}`
 
             if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()) {
                 await emitSocketEvent(userId.toString(), "error", {
@@ -2108,6 +2240,9 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await redis.del(redisKey);
+            await redis.del(sysDesKey)
+            await redis.del(timeLockForInterview)
+            await redis.del(userInterview)
 
             //TO_DO : make full analysis report with ai like how he performed what can be done better where he messed up 
 

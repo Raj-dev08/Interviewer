@@ -19,7 +19,7 @@ const submissionSchema = new mongoose.Schema(
         },
         questionType: {
             type: String,
-            enum: ["DSA","CaseStudy","SystemDesign"],
+            enum: ["DSA", "CaseStudy", "SystemDesign"],
             required: true,
         },
         language: {
@@ -46,21 +46,22 @@ const submissionSchema = new mongoose.Schema(
             required: true,
         },
 
-    },{
-        timestamps: true,
-    }
+    }, {
+    timestamps: true,
+}
 )
 submissionSchema.pre("validate", function (next) {
     if (this.questionType === "DSA") {
-        if(!this.language || this.isCorrect === undefined){
+        if (!this.language || this.isCorrect === undefined) {
             return next(new Error("Language is required for DSA questions"))
         }
-        next()
+
     }
+    next()
 })
 
 submissionSchema.index({ createdAt: -1 })
-submissionSchema.index({ attemptNumber: -1})
+submissionSchema.index({ attemptNumber: -1 })
 
 
 const Submission = mongoose.model("Submission", submissionSchema);
