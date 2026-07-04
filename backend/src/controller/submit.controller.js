@@ -789,7 +789,7 @@ export const startSysDes = async (req, res, next) => {
             redisSysDesStartKey,
             user._id,
             "EX",
-            interview.duration * 60 + 300,
+            interview.duration * 60,
             "NX"
         );
 
@@ -881,23 +881,7 @@ export const messageSysDes = async (req, res, next) => {
         }
 
 
-        const redisTimeLock = `interview-started-for:${interviewId}`
 
-        const timeLockForInterview = await redis.get(redisTimeLock)
-
-        if (!timeLockForInterview) {
-
-            if (interview.status !== "started") {
-                return res.status(400).json({ message: "Interview is not started or is finished" });
-            }
-            else {
-                await interviewQueue.add("finishInterview", {
-                    interviewId,
-                    userId: user._id,
-                })
-                return res.status(400).json({ message: "Interview is over" })
-            }
-        }
 
         if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
@@ -905,6 +889,31 @@ export const messageSysDes = async (req, res, next) => {
 
         if (interview.userId.toString() !== user._id.toString()) {
             return res.status(403).json({ message: "You are not authorized to message this interview" })
+        }
+
+
+        const redisTimeLock = `interview-started-for:${interviewId}`
+
+        const timeLockForInterview = await redis.get(redisTimeLock)
+
+        if (!timeLockForInterview) {
+
+            await interviewQueue.add("finishInterview", {
+                interviewId,
+                userId: user._id,
+            })
+            return res.status(200).json({ message: "Interview is over" })
+
+        }
+
+        const ttl = await redis.ttl(redisTimeLock)
+
+        if (ttl <= 4) {
+            await interviewId.add("finishInterview", {
+                interviewId,
+                userId: user._id,
+            })
+            return res.status(200).json({ message: "Sadly the interview is over and the last message wasnt registered" })
         }
 
         const sysDes = interview.questions.sysDes
@@ -1183,7 +1192,7 @@ export const startCase = async (req, res, next) => {
             redisSysDesStartKey,
             user._id,
             "EX",
-            interview.duration * 60 + 300,
+            interview.duration * 60,
             "NX"
         );
 
@@ -1191,23 +1200,9 @@ export const startCase = async (req, res, next) => {
             return res.status(400).json({ message: "You are already in a system design interview" })
         }
 
-        const redisTimeLock = `interview-started-for:${interviewId}`
 
-        const timeLockForInterview = await redis.get(redisTimeLock)
 
-        if (!timeLockForInterview) {
 
-            if (interview.status !== "started") {
-                return res.status(400).json({ message: "Interview is not started or is finished" });
-            }
-            else {
-                await interviewId.add("finishInterview", {
-                    interviewId,
-                    userId: user._id,
-                })
-                return res.status(400).json({ message: "Interview has not started yet" })
-            }
-        }
 
         if (interview.status !== "started") {
             return res.status(400).json({ message: "Interview is not started or is finished" });
@@ -1216,6 +1211,22 @@ export const startCase = async (req, res, next) => {
         if (interview.userId.toString() !== user._id.toString()) {
             return res.status(403).json({ message: "You are not authorized to message this interview" })
         }
+
+        const redisTimeLock = `interview-started-for:${interviewId}`
+
+        const timeLockForInterview = await redis.get(redisTimeLock)
+
+
+        if (!timeLockForInterview) {
+            await interviewId.add("finishInterview", {
+                interviewId,
+                userId: user._id,
+            })
+            return res.status(400).json({ message: "Interview is over" })
+
+        }
+
+
 
         const belongsToInterview = interview.questions.case.some(
             q => q._id.toString() === questionId
@@ -1295,6 +1306,13 @@ export const messageCase = async (req, res, next) => {
             return res.status(404).json({ message: "Interview not found" });
         }
 
+        if (interview.status !== "started") {
+            return res.status(400).json({ message: "Interview is not started or is finished" });
+        }
+
+        if (interview.userId.toString() !== user._id.toString()) {
+            return res.status(403).json({ message: "You are not authorized to message this interview" })
+        }
 
         const redisTimeLock = `interview-started-for:${interviewId}`
 
@@ -1302,24 +1320,23 @@ export const messageCase = async (req, res, next) => {
 
         if (!timeLockForInterview) {
 
-            if (interview.status !== "started") {
-                return res.status(400).json({ message: "Interview is not started or is finished" });
-            }
-            else {
-                await interviewId.add("finishInterview", {
-                    interviewId,
-                    userId: user._id,
-                })
-                return res.status(400).json({ message: "Interview has not started yet" })
-            }
+
+            await interviewQueue.add("finishInterview", {
+                interviewId,
+                userId: user._id,
+            })
+            return res.status(200).json({ message: "Interview is over" })
+
         }
 
-        if (interview.status !== "started") {
-            return res.status(400).json({ message: "Interview is not started or is finished" });
-        }
+        const ttl = await redis.ttl(redisTimeLock)
 
-        if (interview.userId.toString() !== user._id.toString()) {
-            return res.status(403).json({ message: "You are not authorized to message this interview" })
+        if (ttl <= 4) {
+            await interviewId.add("finishInterview", {
+                interviewId,
+                userId: user._id,
+            })
+            return res.status(200).json({ message: "Sadly the interview is over and the last message wasnt registered" })
         }
 
 

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, Clock } from "lucide-react";
+import { Loader2, Clock, TriangleAlert } from "lucide-react";
 import { useInterviewFlowStore } from "@/store/useInterviewFlow";
 import SystemDesignSection from "@/components/SystemDesignSection";
 import CaseStudySection from "@/components/CaseStudySection";
 import InterviewNavigation from "@/components/InterviewNavigation";
 import DSASection from "@/components/DSAInterview";
+import InterviewFinishedScreen from "@/components/InterviewFinished";
 
 export default function InterviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function InterviewPage() {
 
 
   const [displayTime, setDisplayTime] = useState(0);
+  const [interviewEnded, setInterviewEnded] = useState(false);
 
   const [activeType, setActiveType] = useState<"sysDes" | "case" | "dsa">("sysDes");
   const [selectedQuestion, setSelectedQuestion] =
@@ -34,6 +36,9 @@ export default function InterviewPage() {
 
 
   useEffect(() => {
+    if (activeInterviewTime && activeInterviewTime <= 2) {
+      setInterviewEnded(true)
+    }
     setDisplayTime(activeInterviewTime || 0);
   }, [activeInterviewTime]);
 
@@ -65,61 +70,51 @@ export default function InterviewPage() {
   useEffect(() => {
     if (!id) return;
 
-    fetchInterview(id);
+    const init = async () => {
+      const success = await fetchInterview(id);
+      if (!success) {
+        setInterviewEnded(true)
+      }
+    }
+
+    init()
+
     getRemainingTime(id);
 
   }, [id]);
 
+  // console.log(displayTime, activeInterviewTime)
+
+  const lastPollRef = useRef<number>(0);
+
   useEffect(() => {
     if (!id) return;
 
-    let interval: NodeJS.Timeout;
+    const interval = setInterval(() => {
+      const now = Date.now();
 
-    const scheduleFetch = () => {
-      const t = displayTime;
+      let pollEvery = 600000; // >10 min -> every 10 min
 
-      // near end: fast polling
-      if (t <= 10) {
-        interval = setTimeout(() => {
-          getRemainingTime(id);
-          scheduleFetch();
-        }, 5000);
+      if (displayTime <= 10) {
+        pollEvery = 5000; // every 5 sec
+      } else if (displayTime <= 60) {
+        pollEvery = 20000; // every 20 sec (~3 polls)
+      } else if (displayTime <= 120) {
+        pollEvery = 30000; // every 30 sec (~4 polls)
+      } else if (displayTime <= 300) {
+        pollEvery = 60000; // every 1 min
+      } else if (displayTime <= 600) {
+        pollEvery = 120000; // every 2 min
       }
 
-      // mid range: slow polling
-      else if (t <= 60) {
-        interval = setTimeout(() => {
-          getRemainingTime(id);
-          scheduleFetch();
-        }, 30000);
+      if (now - lastPollRef.current >= pollEvery) {
+        lastPollRef.current = now;
+        getRemainingTime(id);
       }
+    }, 1000);
 
-      // long time left: very slow polling
-      else if (t <= 120) {
-        interval = setTimeout(() => {
-          getRemainingTime(id);
-          scheduleFetch();
-        }, 60000);
-      }
-
-      else if (t <= 600) {
-        interval = setTimeout(() => {
-          getRemainingTime(id);
-          scheduleFetch();
-        }, 300000);
-      }
-      else {
-        interval = setTimeout(() => {
-          getRemainingTime(id);
-          scheduleFetch();
-        }, 600000);
-      }
-    };
-
-    scheduleFetch();
-
-    return () => clearTimeout(interval);
-  }, [id, displayTime]);
+    return () => clearInterval(interval);
+  }, [id, displayTime, getRemainingTime]);
 
   if (loading) {
     return (
@@ -129,12 +124,21 @@ export default function InterviewPage() {
     );
   }
 
-  if (!interview) {
+  if (!interview && !interviewEnded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
         Interview not found
       </div>
     );
+  }
+
+  if (interviewEnded) {
+    return (
+      <InterviewFinishedScreen
+        onGoDashboard={() => (window.location.href = "/client")}
+        onReload={() => window.location.reload()}
+      />
+    )
   }
 
   // console.log(interview)
@@ -147,24 +151,35 @@ export default function InterviewPage() {
       <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold capitalize">
-            {interview.type}
+            {interview?.type}
           </h1>
 
           <p className="text-sm text-zinc-500">
-            Status: {interview.status}
+            Status: {interview?.status}
           </p>
 
 
         </div>
+        <div className="flex gap-2">
+          {displayTime < 30 && (
+            <div className="flex items-center gap-2 border border-orange-500/20 bg-orange-500/10 text-orange-400 px-3 py-2 rounded-xl">
+              <TriangleAlert />
+              <p>
+                Interview will end in {displayTime - 4} secs
+              </p>
+            </div>
+          )}
+          <div className={`flex items-center gap-2 rounded-xl border ${displayTime < 10 ? `border-red-500/20 bg-red-500/10 text-red-400` : `border-green-500/20 bg-green-500/10 text-green-400`} px-3 py-2 `}>
+            <Clock className="h-4 w-4 animate-pulse" />
 
-        <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/10 px-3 py-2 text-green-400">
-          <Clock className="h-4 w-4 animate-pulse" />
-
-          <span className="font-mono text-sm font-bold tracking-wider">
-            {formatTime(displayTime)}
-          </span>
+            <span className="font-mono text-sm font-bold tracking-wider">
+              {formatTime(displayTime)}
+            </span>
+          </div>
         </div>
       </div>
+
+
 
       <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
         <InterviewNavigation
@@ -198,7 +213,7 @@ export default function InterviewPage() {
           </div>
         ) : (
           <>
-            {activeType === "dsa" && selectedQuestion.source == "dsa" && (
+            {activeType === "dsa" && selectedQuestion.source == "dsa" && displayTime > 4 && (
               <DSASection
                 key={selectedQuestion.question._id}
                 interviewId={id}
@@ -206,7 +221,7 @@ export default function InterviewPage() {
               />
             )}
 
-            {activeType === "sysDes" && selectedQuestion.source == "sysDes" && (
+            {activeType === "sysDes" && selectedQuestion.source == "sysDes" && displayTime > 4 && (
               <SystemDesignSection
                 key={selectedQuestion.question._id}
                 interviewId={id}
@@ -214,7 +229,7 @@ export default function InterviewPage() {
               />
             )}
 
-            {activeType === "case" && selectedQuestion.source == "case" && (
+            {activeType === "case" && selectedQuestion.source == "case" && displayTime > 4 && (
               <CaseStudySection
                 key={selectedQuestion.question._id}
                 interviewId={id}

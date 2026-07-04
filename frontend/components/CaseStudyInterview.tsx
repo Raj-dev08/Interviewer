@@ -12,6 +12,7 @@ import {
 import { useCaseStore } from "@/store/useCaseStudyStore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useAuthStore } from "@/store/useAuth";
 
 export default function CaseStudyInterview({
     interviewId,
@@ -32,11 +33,17 @@ export default function CaseStudyInterview({
         subscribetoMessages,
     } = useCaseStore();
 
+    const { socket, connectSocket, disconnectSocket } = useAuthStore()
+
     const [input, setInput] = useState("");
     const [started, setStarted] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        subscribetoMessages()
+    }, [])
 
     useEffect(() => {
         const init = async () => {
@@ -49,7 +56,7 @@ export default function CaseStudyInterview({
                 setStarted(true)
             }
 
-            subscribetoMessages();
+
             getMessages(
                 interviewId,
                 question._id
@@ -106,10 +113,16 @@ export default function CaseStudyInterview({
 
     const handleRefresh = async () => {
         if (!question?._id) return;
-
+        disconnectSocket()
         setRefreshing(true);
 
         try {
+
+            if (!socket.connected) {
+                connectSocket()
+            }
+
+            subscribetoMessages();
             await getMessages(interviewId, question._id);
         } finally {
             setRefreshing(false);

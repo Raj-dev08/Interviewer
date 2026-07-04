@@ -112,13 +112,13 @@ export const getRemainingTime = async (req, res, next) => { //only for checking 
                 return res.status(400).json({ message: "Interview is not started" })
             }
 
-            await Interview.findByIdAndUpdate(id, { status: "completed" })
+            if (interview.status === "finished") {
+                return res.status(200).json({ message: "Interview already graded please go back" })
+            }
 
-            //queue for the 
-
-            await interviewQueue.add("rateInterview", {
-                userId: interview.userId,
-                interviewId: interview._id
+            await interviewQueue.add("finishInterview", {
+                interviewId: interview._id,
+                userId: user._id,
             })
 
 

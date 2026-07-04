@@ -37,7 +37,7 @@ type InterviewFlowStore = {
 
   startInterview: (id: string) => Promise<boolean>;
   getRemainingTime: (id: string) => Promise<number | null>;
-  fetchInterview: (id: string) => Promise<void>;
+  fetchInterview: (id: string) => Promise<boolean>;
   getActiveInterview: () => Promise<void>;
 
   clearInterview: () => void;
@@ -101,10 +101,10 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
 
         return null;
       } catch (err: any) {
-        toast.error(
-          err?.response?.data?.message ||
-          "Failed to get remaining time"
-        );
+        // toast.error(
+        //   err?.response?.data?.message ||
+        //   "Failed to get remaining time"
+        // );
 
         return null;
       }
@@ -121,11 +121,14 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
         set({
           interview: res.data.interview,
         });
+
+        return true
       } catch (err: any) {
-        toast.error(
-          err?.response?.data?.message ||
-          "Failed to fetch interview"
-        );
+        // toast.error(
+        //   err?.response?.data?.message ||
+        //   "Failed to fetch interview"
+        // );
+        return false
       } finally {
         set({ loading: false });
       }

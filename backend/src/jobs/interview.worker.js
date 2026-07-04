@@ -702,7 +702,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const ttl = await redis.ttl(redisKeyForExpiry)
 
             let isInterviewWrapUp = false;
-            if (ttl < 40) {
+            if (ttl < 10) {
                 isInterviewWrapUp = true
             }
 
@@ -1622,10 +1622,71 @@ const interviewWorker = new Worker("interview", async (job) => {
                 "The case interview is complete. You may proceed to the next question."
                 `;
 
+            const redisKeyForExpiry = `User-current-interview:${userId}`
+
+            const ttl = await redis.ttl(redisKeyForExpiry)
+
+            let isInterviewWrapUp = false;
+            if (ttl < 10) {
+                isInterviewWrapUp = true
+            }
+
+            const wrapUpPrompt = `
+                You are a strict, professional SYSTEM DESIGN INTERVIEWER.
+
+                ====================
+                INTERVIEW CONTEXT
+                ====================
+
+                ${baseContext}
+
+                ====================
+                CONVERSATION HISTORY
+                ====================
+
+                ${chatHistory || "No previous conversation yet."}
+
+                ====================
+                INTERNAL GUIDE
+                ====================
+
+                ${hiddenGuide}
+
+                ====================
+                RULES
+                ====================
+
+                The interview has reached its wrap-up stage.
+
+                - Read the entire conversation before responding.
+                - Do NOT ask any new technical or follow-up questions.
+                - Do NOT continue evaluating the candidate.
+                - Do NOT reveal the expected solution, hidden guide, evaluation criteria, score, or whether the candidate was correct.
+                - Do NOT provide interview feedback.
+
+                If the candidate has already indicated they want to finish the interview (examples: "finish", "end it", "wrap up", "that's all", "you can end it"), politely conclude the interview.
+
+                Otherwise:
+                - Ask if they have any final thoughts or questions.
+                - Then ask whether they would like to finish the interview themselves or would like you to conclude it on their behalf.
+
+                If the candidate confirms they want to end the interview, conclude with something similar to:
+
+                "Thank you for your time today. This concludes the interview. You may now proceed to the next question or finish the interview."
+
+                Keep the response short, natural, professional, and conversational.
+
+                Return ONLY the message that should be sent to the candidate.
+                `;
+
+
             const decision = await openai.chat.completions.create({
                 model: "nvidia/nemotron-3-super-120b-a12b",
                 messages: [
-                    { role: "system", content: systemPrompt },
+                    {
+                        role: "system",
+                        content: isInterviewWrapUp ? wrapUpPrompt : systemPrompt
+                    },
                     {
                         role: "user", content: `Conversation:\n
                         ${chatHistory}
@@ -1658,7 +1719,6 @@ const interviewWorker = new Worker("interview", async (job) => {
                 Return STRICT JSON.
 
                 {
-                    "shouldRate": boolean,
                     "shouldEnd": boolean,
                     "needsNextAction": boolean,
                     "nextAction": string | null
@@ -1666,22 +1726,20 @@ const interviewWorker = new Worker("interview", async (job) => {
 
                 Rules
 
-                1. Rate meaningful answers.
-
-                2. needsNextAction=true only if
+                1. needsNextAction=true only if
                 - interviewer should continue
                 - candidate answered previous question
 
-                3. needsNextAction=false if
+                2. needsNextAction=false if
                 - interviewer is already waiting
                 - last AI message already asked something
 
-                4. shouldEnd=true only if
+                3. shouldEnd=true only if
                 - objectives completed
                 - repeated failure
                 - candidate explicitly finishes
 
-                5. If shouldEnd=true
+                4. If shouldEnd=true
                 needsNextAction=true
                 nextAction="wrap_up"
 
@@ -1739,13 +1797,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                     );
                 }
 
-                if (output.shouldRate) {
-                    await interviewQueue.add("rateForMessageCase", {
-                        interviewId,
-                        userId,
-                        questionId
-                    });
-                }
+
+                await interviewQueue.add("rateForMessageCase", {
+                    interviewId,
+                    userId,
+                    questionId
+                });
+
 
                 if (output.needsNextAction) {
                     await interviewQueue.add("nextDecisionCase", {
@@ -1781,6 +1839,22 @@ const interviewWorker = new Worker("interview", async (job) => {
             const { user, interview, question } = result;
 
             let prevQuestions;
+
+            const redisKeyForEnd = `end-case-chat:${interviewId}:${userId}:${questionId}`
+
+            if (await redis.exists(redisKeyForEnd)) {
+                const msg = await CaseChat.create({
+                    interviewId,
+                    userId,
+                    questionId,
+                    sentBy: "ai",
+                    message: "This case is complete. Move to the next one."
+                })
+
+                await emitSocketEvent(userId.toString(), "newMessageCaseStudy", { newMessage: msg, interview, question })
+                return;
+            }
+
 
             if (type === "ask_followup") {
                 prevQuestions = await CaseChat.find({
@@ -1895,7 +1969,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 userId,
                 questionId
-            }).sort({ createdAt: -1 }).limit(30).lean();
+            }).sort({ createdAt: -1 }).limit(10).lean();
 
             previousMessages.reverse();
 
@@ -1904,6 +1978,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const lastUser = previousMessages
                 .filter(m => m.sentBy === "user")
                 .slice(-1)[0]?.message;
+
 
             const ratingSystemPrompt = `
                 You are a strict case interview scoring engine.
@@ -1990,97 +2065,122 @@ const interviewWorker = new Worker("interview", async (job) => {
                 ${question.goal}
 
                 Data:
-                ${question.data.map(d => `${d.label}: ${d.value}`).join("\n")}
+                ${question.data?.map(d => `${d.label}: ${d.value}`).join("\n")}
 
                 Sample solution:
-                ${question.sampleSolution.answer}
+                ${question.sampleSolution?.answer}
 
                 Sample solution keypoints:
-                ${question.sampleSolution.keypoints.join("\n")}
+                ${question.sampleSolution?.keyPoints.join("\n")}
 
 
                 Constraints:
                 ${question.constraints?.join("\n")}
 
                 Evaluation:
-                ${question.evaluation.map(e => `- ${e.category}: ${e.description} (weight ${e.weight})`).join("\n")}
+                ${question.evaluation?.map(e => `- ${e.category}: ${e.description} (weight ${e.weight})`).join("\n")}
                 `;
+
+
 
             const hiddenGuide = question.expectedApproach.join("\n");
 
-            const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
-                messages: [
-                    {
-                        role: "system",
-                        content: ratingSystemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: `
-                            Base question context: ${baseContext}
-                            Hidden guide: ${hiddenGuide}
-                            lastest user answer: ${lastUser}   
+            let delta
+
+            const redisKeyForRatingNumbers = `interview-rating-count:${interviewId}:${userId}:${questionId}`
+            const redisKeyForPreviousDelta = `interview-previous-delta:${interviewId}:${userId}:${questionId}`
+
+            const count = await redis.incr(redisKeyForRatingNumbers);
+
+            if (count === 1) {
+                // Set expiry only the first time
+                await redis.expire(redisKeyForRatingNumbers, interview.duration * 60);
+            }
+
+            const isPreviousDelta = await redis.get(redisKeyForPreviousDelta);
+
+            if (count >= 3 || !isPreviousDelta) {
+
+                const decision = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: ratingSystemPrompt
+                        },
+                        {
+                            role: "user",
+                            content: `
+                                Base question context: ${baseContext}
+                                Hidden guide: ${hiddenGuide}
+                                lastest user answer: ${lastUser}   
+                                
+                                Previous conversation: ${chatContext}
                             
-                            Previous conversation: ${chatContext}
-                           
-                            Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
-                        `
+                                Previous Score: ${prevSubmission ? prevSubmission.totalPoint : 5}
+                            `
 
-                    }
-                ]
-            });
+                        }
+                    ]
+                });
 
-            const raw = decision.choices[0].message.content.trim();
+                const raw = decision.choices[0].message.content.trim();
 
-            const match = raw.match(/-?\d+(\.\d+)?/);
-            let delta = match ? parseFloat(match[0]) : 0;
-            delta = Math.max(-1, Math.min(1, delta));
-
-            if (prevSubmission) {
-                const current = prevSubmission ? prevSubmission.totalPoint : 5;
-
-                const gain = (10 - current) / 10
-                const loss = current / 10
-
-                let newDelta;
-
-                if (delta > 0) {
-                    newDelta = delta * (gain * 1.2);
-                } else {
-                    newDelta = delta * (loss * 1.5);
+                try {
+                    let num = parseFloat(raw)
+                    delta = num
+                } catch {
+                    delta = 0
                 }
 
-                let newScore = current + newDelta;
+                await redis.set(redisKeyForPreviousDelta, delta.toString(), "EX", interview.duration * 60);
+                await redis.del(redisKeyForRatingNumbers);
+            } else {
+                const previousDelta = await redis.get(redisKeyForPreviousDelta);
+                const newDelta = parseFloat(previousDelta)
 
-                newScore = Math.max(0, Math.min(10, newScore));
+                if (!isNaN(newDelta)) {
+                    delta = newDelta / 2;
+                    await redis.set(redisKeyForPreviousDelta, delta.toString(), "EX", interview.duration * 60);
+                } else {
+                    delta = 0;
+                }
+            }
 
-                await Submission.findOneAndUpdate({
+            delta = Math.max(-1, Math.min(1, delta));
+
+            const baseScore = prevSubmission ? prevSubmission.totalPoint : 5;
+
+            const newScore = Math.max(0, Math.min(10, baseScore + delta));
+
+
+
+            const submission = await Submission.findOneAndUpdate(
+                {
                     interviewId,
                     userId,
                     questionId,
                     questionType: "CaseStudy",
                     difficulty: question.difficulty
-                }, {
-                    totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore / 10) * 100)
-                })
-            } else {
-                const baseScore = 5;
+                },
+                {
+                    $setOnInsert: {
+                        interviewId,
+                        userId,
+                        questionId,
+                        questionType: "CaseStudy",
+                        difficulty: question.difficulty,
+                        attemptNumber: 1,
+                        totalPoint: newScore,
+                        percentageBeaten: Math.round((newScore / 10) * 100)
+                    }
+                },
+                {
+                    upsert: true,
+                    new: true
+                }
+            );
 
-                const newScore = Math.max(0, Math.min(10, baseScore + delta));
-
-                const newSubmission = await Submission.create({
-                    interviewId,
-                    userId,
-                    questionId,
-                    questionType: "CaseStudy",
-                    difficulty: question.difficulty,
-                    attemptNumber: 1,
-                    totalPoint: newScore,
-                    percentageBeaten: Math.round((newScore / 10) * 100)
-                })
-            }
 
             const prevFeedBack = await CaseFeedback.findOne({
                 interviewId,
@@ -2192,23 +2292,33 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const outputForFeedback = feedbackdecision.choices[0].message.content.trim();
 
-            const parsed = JSON.parse(outputForFeedback);
+            let parsed
 
-            await CaseFeedback.findOneAndUpdate({
-                interviewId,
-                userId,
-                questionId
-            }, {
-                strength: parsed.strengths,
-                weakness: parsed.weaknesses,
-                improvement: parsed.improvements
-            }, {
-                upsert: true,
-                new: true
-            })
+            try {
+                parsed = JSON.parse(outputForFeedback);
+            } catch (error) {
+                console.log(error)
+                //we wont do anything with the parsed 
+            }
+
+            if (parsed) {
+                await CaseFeedback.findOneAndUpdate({
+                    interviewId,
+                    userId,
+                    questionId
+                }, {
+                    strength: parsed.strengths,
+                    weakness: parsed.weaknesses,
+                    improvement: parsed.improvements
+                }, {
+                    upsert: true,
+                    new: true
+                })
+            }
+
         }
         else if (job.name === "finishInterview") {
-            const { interviewId, userId, questionId } = job.data
+            const { interviewId, userId } = job.data
             const user = await User.findById(userId);
 
             if (!user || user.isDisabled) {
@@ -2218,13 +2328,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return
             }
 
-            const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
-            const interview = cached ? JSON.parse(cached) : await Interview.findById(interviewId);
-
-            const sysDesKey = `sysDes:start:${questionId}:${interviewId}:${userId}`
-            const timeLockForInterview = `interview-started-for:${interviewId}`
-            const userInterview = `User-current-interview:${userId}`
+            const interview = await Interview.findById(interviewId)
 
             if (!interview || interview.status !== "started" || interview.userId.toString() !== user._id.toString()) {
                 await emitSocketEvent(userId.toString(), "error", {
@@ -2233,6 +2337,40 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return
             }
 
+
+            // await interviewQueue.add("finalDSAScan", {
+            //     interviewId,
+            //     userId
+            // })
+
+
+
+            if (interview.questions.case.length > 0) {
+                await interviewQueue.add("finalCaseScan", {
+                    interviewId,
+                    userId
+                })
+            }
+
+            if (interview.questions.sysDes.length > 0) {
+                await interviewQueue.add("finalSysDesScan", {
+                    interviewId,
+                    userId
+                })
+            }
+
+            const redisKey = `ongoingInterview:${interviewId}`;
+            const cached = await redis.get(redisKey);
+
+
+
+            const timeLockForInterview = `interview-started-for:${interviewId}`
+            const userInterview = `User-current-interview:${userId}`
+            const userAllInterviews = `interviewsFor:${userId}`
+
+
+
+
             await Interview.findOneAndUpdate({
                 _id: interviewId
             }, {
@@ -2240,12 +2378,420 @@ const interviewWorker = new Worker("interview", async (job) => {
             })
 
             await redis.del(redisKey);
-            await redis.del(sysDesKey)
             await redis.del(timeLockForInterview)
             await redis.del(userInterview)
+            await redis.del(userAllInterviews)
+
 
             //TO_DO : make full analysis report with ai like how he performed what can be done better where he messed up 
 
+        }
+        else if (job.name === "finalSysDesScan") {
+            const { interviewId, userId } = job.data;
+
+            const user = await User.findById(userId);
+
+            if (!user || user.isDisabled) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: "User not found or is disabled"
+                })
+                return
+            }
+
+            const interview = await Interview.findById(interviewId)
+
+            if (!interview || interview.status !== "finished" || interview.userId.toString() !== user._id.toString()) {
+                console.log("error in finalSysDesScan status error")
+                return;
+            }
+
+
+
+            const sysDesQuestionsId = interview.questions.sysDes
+
+            const questions = await SystemDesign.find({
+                _id: { $in: sysDesQuestionsId }
+            }).lean();
+
+            const chats = await SystemdesignChat.find({
+                interviewId,
+                userId,
+                questionId: { $in: sysDesQuestionsId }
+            })
+                .sort({ createdAt: 1 })
+                .lean();
+
+            const submissions = await Submission.find({
+                interviewId,
+                userId,
+                questionId: { $in: sysDesQuestionsId },
+                questionType: "SystemDesign"
+            }).lean();
+
+
+
+            const finalPrompt = [];
+
+            for (const question of questions) {
+                const questionChats = chats.filter(
+                    c => c.questionId.toString() === question._id.toString()
+                );
+
+                const submission = submissions.find(
+                    s => s.questionId.toString() === question._id.toString()
+                );
+
+                finalPrompt.push({
+                    questionId: question._id,
+                    difficulty: question.difficulty,
+                    previousScore: submission?.totalPoint ?? 5,
+
+                    prompt: `
+                        ==========================
+                        QUESTION
+                        ==========================
+
+                        Question:
+                        ${question.question}
+
+                        Description:
+                        ${question.description}
+
+                        Constraints:
+                        ${question.constraints}
+
+                        Difficulty:
+                        ${question.difficulty}
+
+                        Expected Flow:
+                        ${question.correctAnswerFlow
+                            .map(step => `${step.step}. ${step.title}\n${step.approach}`)
+                            .join("\n\n")}
+
+                        Evaluation Criteria:
+                        ${question.evaluation
+                            .map(e => `- ${e.title}: ${e.description} (weight ${e.weight})`)
+                            .join("\n")}
+
+                        Current Score:
+                        ${submission?.totalPoint ?? 5}
+
+                        Conversation:
+                        ${questionChats
+                            .map(chat => `${chat.sentBy.toUpperCase()}: ${chat.message}`)
+                            .join("\n\n")}
+                        `
+                });
+            }
+
+            const systemDesignRatingPrompt = `
+                The candidate has been scored throughout the interview.
+
+                The current score is the primary score and should be trusted.
+
+                Your job is NOT to rescore the interview.
+
+                Your job is to determine whether the current score should be adjusted after seeing the COMPLETE conversation.
+
+                The progressive scorer sometimes has limited information early in the interview, so the final review exists to correct under-rating or over-rating.
+
+                Guidelines:
+
+                - If the current score accurately reflects the interview, return it unchanged.
+                - If the candidate consistently performed better than the current score suggests, increase it.
+                - If the candidate consistently performed worse than the current score suggests, decrease it.
+
+                IMPORTANT:
+
+                The farther the current score is from the middle (5/10), the stronger the evidence required to change it.
+
+                Examples:
+
+                Current score: 9.2
+                Only reduce if there are clear, repeated architectural mistakes.
+
+                Current score: 8.8
+                Small mistakes should NOT significantly lower the score.
+
+                Current score: 2.1
+                One or two good answers should NOT suddenly make it a 6.
+
+                Current score: 5.0
+                This score has the highest uncertainty.
+                Feel free to move it more if the overall interview clearly deserves it.
+
+                Current score: 6.0
+                Moderate adjustments are acceptable.
+
+                Current score: 7.5
+                Only make moderate corrections if the overall interview consistently supports them.
+
+                Your adjustment should become smaller as confidence in the existing score increases.
+
+                Evaluate:
+                - completeness
+                - architecture
+                - scalability
+                - trade-offs
+                - communication
+                - consistency
+                - handling follow-ups
+                - correction of previous mistakes
+
+                Return ONLY the final score between 0 and 10.
+                `;
+
+
+            for (const item of finalPrompt) {
+                const decision = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemDesignRatingPrompt
+                        },
+                        {
+                            role: "user",
+                            content: item.prompt
+                        }
+                    ]
+                });
+                const raw = decision.choices[0]?.message?.content ?? ""
+
+                let newScore
+
+                try {
+                    newScore = parseFloat(raw)
+                } catch {
+                    console.log("failed parse falling back to prev")
+                    newScore = item.previousScore
+                }
+
+                newScore = Math.max(0, Math.min(10, newScore));
+
+
+                await Submission.findOneAndUpdate(
+                    {
+                        interviewId,
+                        userId,
+                        questionId: item.questionId,
+                        questionType: "SystemDesign",
+                        difficulty: item.difficulty
+                    },
+                    {
+                        $set: {
+                            totalPoint: newScore,
+                            percentageBeaten: Math.round((newScore / 10) * 100)
+                        }
+                    },
+                    {
+                        new: true
+                    }
+                );
+            }
+
+
+        }
+        else if (job.name === "finalCaseScan") {
+            const { interviewId, userId } = job.data;
+
+            const user = await User.findById(userId);
+
+            if (!user || user.isDisabled) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: "User not found or is disabled"
+                });
+                return;
+            }
+
+            const interview = await Interview.findById(interviewId);
+
+            if (
+                !interview ||
+                interview.status !== "finished" ||
+                interview.userId.toString() !== user._id.toString()
+            ) {
+                console.log("error in finalCaseScan status error");
+                return;
+            }
+
+            const caseQuestionIds = interview.questions.case;
+
+            const questions = await caseStudy.find({
+                _id: { $in: caseQuestionIds }
+            }).lean();
+
+            const chats = await CaseChat.find({
+                interviewId,
+                userId,
+                questionId: { $in: caseQuestionIds }
+            })
+                .sort({ createdAt: 1 })
+                .lean();
+
+            const submissions = await Submission.find({
+                interviewId,
+                userId,
+                questionId: { $in: caseQuestionIds },
+                questionType: "CaseStudy"
+            }).lean();
+
+            const finalPrompt = [];
+
+            for (const question of questions) {
+                const questionChats = chats.filter(
+                    c => c.questionId.toString() === question._id.toString()
+                );
+
+                const submission = submissions.find(
+                    s => s.questionId.toString() === question._id.toString()
+                );
+
+                finalPrompt.push({
+                    questionId: question._id,
+                    difficulty: question.difficulty,
+                    previousScore: submission?.totalPoint ?? 5,
+
+                    prompt: `
+                    ==========================
+                    CASE STUDY
+                    ==========================
+
+                    Title:
+                    ${question.title}
+
+                    Description:
+                    ${question.description}
+
+                    Context:
+                    ${question.previousContext}
+
+                    Goal:
+                    ${question.goal}
+
+                    Difficulty:
+                    ${question.difficulty}
+
+                    Domain:
+                    ${question.domain}
+
+                    Type:
+                    ${question.type}
+
+                    Data:
+                    ${question.data
+                            .map(d => `${d.label}: ${d.value}`)
+                            .join("\n")}
+
+                    Expected Approach:
+                    ${question.expectedApproach.join("\n")}
+
+                    Sample Solution:
+                    ${question.sampleSolution.answer}
+
+                    Sample Solution Key Points:
+                    ${question.sampleSolution.keyPoints.join("\n")}
+
+                    Constraints:
+                    ${question.constraints.join("\n")}
+
+                    Evaluation Criteria:
+                    ${question.evaluation
+                            .map(e => `- ${e.category}: ${e.description} (weight ${e.weight})`)
+                            .join("\n")}
+
+                    Current Score:
+                    ${submission?.totalPoint ?? 5}
+
+                    Conversation:
+                    ${questionChats
+                            .map(chat => `${chat.sentBy.toUpperCase()}: ${chat.message}`)
+                            .join("\n\n")}
+                    `
+                });
+            }
+
+            const caseRatingPrompt = `
+                The candidate has been scored throughout the case interview.
+
+                The current score is the primary score and should be trusted.
+
+                Do NOT rescore the interview.
+
+                Your task is to determine whether the current score should be adjusted after reviewing the COMPLETE conversation.
+
+                The progressive scorer may have had insufficient context early in the interview, so this final review exists only to correct under-rating or over-rating.
+
+                Guidelines:
+
+                - Keep the score unchanged if it already reflects the overall performance.
+                - Increase only if the overall discussion consistently demonstrates stronger business thinking than the score suggests.
+                - Decrease only if the overall discussion consistently demonstrates weaker business thinking than the score suggests.
+
+                The farther the score is from 5/10, the stronger the evidence required to change it.
+
+                Evaluate:
+                - problem structuring
+                - assumptions
+                - prioritization
+                - quantitative reasoning
+                - business logic
+                - communication
+                - hypothesis-driven thinking
+                - handling follow-up questions
+                - consistency throughout the discussion
+
+                Return ONLY the final score between 0 and 10.
+                `;
+
+            for (const item of finalPrompt) {
+                const decision = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: caseRatingPrompt
+                        },
+                        {
+                            role: "user",
+                            content: item.prompt
+                        }
+                    ]
+                });
+
+                const raw = decision.choices[0]?.message?.content ?? "";
+
+                let newScore = parseFloat(raw);
+
+                if (isNaN(newScore)) {
+                    console.log("failed parse falling back to previous score");
+                    newScore = item.previousScore;
+                }
+
+                newScore = Math.max(0, Math.min(10, newScore));
+
+                await Submission.findOneAndUpdate(
+                    {
+                        interviewId,
+                        userId,
+                        questionId: item.questionId,
+                        questionType: "CaseStudy",
+                        difficulty: item.difficulty
+                    },
+                    {
+                        $set: {
+                            totalPoint: newScore,
+                            percentageBeaten: Math.round((newScore / 10) * 100)
+                        }
+                    },
+                    {
+                        new: true
+                    }
+                );
+            }
+        }
+        else if (job.name === "finalDSAScan") {
+            //to - do cuz neeed whole code scan and quality
         }
         else if (job.name === "startAiListeningForDSA") {
             const { interviewId, userId, questionId } = job.data;
