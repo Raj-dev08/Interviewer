@@ -9,6 +9,7 @@ import CaseStudySection from "@/components/CaseStudySection";
 import InterviewNavigation from "@/components/InterviewNavigation";
 import DSASection from "@/components/DSAInterview";
 import InterviewFinishedScreen from "@/components/InterviewFinished";
+import { Button } from "@/components/ui/button";
 
 export default function InterviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ export default function InterviewPage() {
     setActiveQuestionId,
     fetchInterview,
     getRemainingTime,
+    finishInterview
   } = useInterviewFlowStore();
 
 
@@ -161,6 +163,15 @@ export default function InterviewPage() {
 
         </div>
         <div className="flex gap-2">
+          <button
+            className="bg-red-600 px-2 py-1 text-sm rounded-xl cursor-pointer text-white hover:bg-red-700 hover:opacity-90 transition-all duration-300"
+            onClick={() => {
+              finishInterview(id)
+              setInterviewEnded(true)
+            }
+            }>
+            Finish Interview
+          </button>
           {displayTime < 30 && (
             <div className="flex items-center gap-2 border border-orange-500/20 bg-orange-500/10 text-orange-400 px-3 py-2 rounded-xl">
               <TriangleAlert />

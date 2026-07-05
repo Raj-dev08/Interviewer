@@ -115,6 +115,9 @@ export default function DSASection({
 
     const {
         runCode,
+        submitCode,
+        submissionResult,
+        submitting,
         running,
         runResult,
         clearResults,
@@ -463,20 +466,39 @@ export default function DSASection({
                     </select>
 
                     <div className="flex gap-3">
-                        <button
-                            onClick={() =>
-                                runCode(
-                                    interviewId,
-                                    question._id,
-                                    language,
-                                    code
-                                )
-                            }
-                            disabled={running}
-                            className="rounded-xl bg-zinc-800 px-4 sm:px-5 py-2 hover:bg-zinc-700 transition text-sm sm:text-base disabled:opacity-60"
-                        >
-                            {running ? "Running..." : "Run"}
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() =>
+                                    runCode(
+                                        interviewId,
+                                        question._id,
+                                        language,
+                                        code
+                                    )
+                                }
+                                disabled={running}
+                                className="rounded-xl bg-yellow-600 px-4 sm:px-5 py-2 hover:bg-yellow-800 transition text-sm sm:text-base disabled:opacity-60"
+                            >
+                                {running ? "Running..." : "Run"}
+                            </button>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() =>
+                                    submitCode(
+                                        interviewId,
+                                        question._id,
+                                        language,
+                                        code
+                                    )
+                                }
+                                disabled={submitting}
+                                className="rounded-xl bg-green-600 px-4 sm:px-5 py-2 hover:bg-green-800 transition text-sm sm:text-base disabled:opacity-60"
+                            >
+                                {submitting ? "Submitting..." : "Submit"}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -687,6 +709,82 @@ export default function DSASection({
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {submissionResult && (
+                        <div className="space-y-4">
+                            {(() => {
+                                const failedCase = submissionResult.results?.find(
+                                    (r: any) => !r.passed
+                                );
+
+                                const passedCount =
+                                    submissionResult.results?.filter((r: any) => r.passed).length || 0;
+
+                                const total =
+                                    submissionResult.results?.length || 0;
+
+                                return (
+                                    <>
+                                        <div
+                                            className={`rounded-xl border p-4 flex items-center gap-2 font-semibold ${submissionResult.passed
+                                                    ? "bg-green-500/10 border-green-500/20 text-green-400"
+                                                    : "bg-red-500/10 border-red-500/20 text-red-400"
+                                                }`}
+                                        >
+                                            {submissionResult.passed ? (
+                                                <>
+                                                    <CheckCircle2 size={20} />
+                                                    Accepted
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <XCircle size={20} />
+                                                    Wrong Answer
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="text-sm text-zinc-400">
+                                            Passed{" "}
+                                            <span className="font-semibold text-white">
+                                                {passedCount}/{total}
+                                            </span>{" "}
+                                            test cases
+                                        </div>
+
+                                        {!submissionResult.passed && failedCase && (
+                                            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 space-y-4">
+                                                <div className="font-semibold text-red-300">
+                                                    First Failed Test Case
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-zinc-500 mb-2 uppercase tracking-wide text-[11px]">
+                                                        Input
+                                                    </div>
+                                                    <ParsedFields value={failedCase.input} />
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-zinc-500 mb-2 uppercase tracking-wide text-[11px]">
+                                                        Expected Output
+                                                    </div>
+                                                    <ParsedFields value={failedCase.expected} />
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-zinc-500 mb-2 uppercase tracking-wide text-[11px]">
+                                                        Your Output
+                                                    </div>
+                                                    <ParsedFields value={failedCase.actual} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>

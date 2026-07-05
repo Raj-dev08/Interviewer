@@ -13,7 +13,7 @@ router.get("/active", activeInterView);
 router.post("/:id/start", startInterview);
 router.get("/:id/time", getRemainingTime);
 router.get("/:id", getInterviewByIdAfterStart);
-router.post("/:id/finish", finishInterview);
+router.patch("/:interviewId/finish", finishInterview);
 
 
 export default router;

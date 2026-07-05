@@ -329,16 +329,15 @@ export const finishInterview = async (req, res, next) => {
             return res.status(403).json({ message: "User is disabled" })
         }
 
-        const { id } = req.params
+        const { interviewId } = req.params
 
-        //end logic
-        const interview = await Interview.findByIdAndUpdate(
-            id,
-            { status: "completed" },
-            { new: true }
-        )
 
-        return res.status(200).json({ message: "Interview ended succesfully" })
+        await interviewQueue.add("finishInterview", {
+            interviewId,
+            userId: user._id
+        })
+
+        return res.status(200).json({ message: "Interview ending scheduled succesfully" })
     } catch (error) {
         next(error)
     }

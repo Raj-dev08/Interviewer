@@ -39,6 +39,7 @@ type InterviewFlowStore = {
   getRemainingTime: (id: string) => Promise<number | null>;
   fetchInterview: (id: string) => Promise<boolean>;
   getActiveInterview: () => Promise<void>;
+  finishInterview: (id: string) => Promise<void>;
 
   clearInterview: () => void;
 };
@@ -131,6 +132,30 @@ export const useInterviewFlowStore = create<InterviewFlowStore>(
         return false
       } finally {
         set({ loading: false });
+      }
+    },
+
+    finishInterview: async (id: string) => {
+      set({ startingInterview: true });
+      try {
+        const res = await axiosInstance.patch(
+          `/interviewflow/${id}/finish`
+        );
+
+        toast.success(
+          res.data.message || "Interview ended"
+        );
+
+        get().getActiveInterview();
+
+      } catch (err: any) {
+        toast.error(
+          err?.response?.data?.message ||
+          "Failed to finish interview"
+        );
+
+      } finally {
+        set({ startingInterview: false });
       }
     },
 

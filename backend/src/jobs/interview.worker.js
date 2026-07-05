@@ -2360,14 +2360,12 @@ const interviewWorker = new Worker("interview", async (job) => {
             }
 
             const redisKey = `ongoingInterview:${interviewId}`;
-            const cached = await redis.get(redisKey);
 
 
 
             const timeLockForInterview = `interview-started-for:${interviewId}`
             const userInterview = `User-current-interview:${userId}`
             const userAllInterviews = `interviewsFor:${userId}`
-
 
 
 
@@ -3219,7 +3217,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
-            if (redis.exists(finishKeyRedis)) {
+            if (await redis.exists(finishKeyRedis)) {
                 return
             }
 
@@ -3374,156 +3372,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                 type: output.action
             })
 
-            if (output.generateFeedback) {
-                const feedbackPrompt = `
-                    You are a senior FAANG DSA interviewer.
-
-                    You are generating FINAL INTERVIEW FEEDBACK for a candidate after completing a DSA interview.
-
-                    You do NOT continue the interview.
-                    You do NOT give hints.
-                    You do NOT explain solutions.
-
-                    You ONLY evaluate performance and produce structured feedback.
-
-                    ---
-
-                    INPUT CONTEXT:
-
-                    QUESTION:
-                    ${question.title}
-
-                    ${question.description}
-
-                    EXPECTED SOLUTION (reference only, do NOT explain):
-                    ${question.correctAnswer.code}
-
-                    LATEST CODE:
-                    ${mostRecentCode || "NO CODE PROVIDED"}
-
-                    CODE HISTORY:
-                    ${history || "NO HISTORY"}
-
-                    CHAT CONTEXT:
-                    ${chatContext || "NO CHAT"}
-
-                    ---
-
-                    EVALUATION GOAL:
-
-                    Assess how the candidate performed in a real interview setting.
-
-                    Focus on:
-                    - correctness of approach
-                    - problem-solving ability
-                    - communication clarity
-                    - coding quality
-                    - speed of progress
-
-                    ---
-
-                    VERDICT RULES:
-
-                    - STRONG_HIRE → excellent approach, correct solution, strong clarity
-                    - HIRE → mostly correct, minor issues
-                    - BORDERLINE → partial understanding, inconsistent logic
-                    - NO_HIRE → incorrect approach or major gaps
-
-                    ---
-
-                    SCORES (1 to 10):
-
-                    - problemSolving → ability to break down and approach problem
-                    - communication → clarity in explaining thought process
-                    - speed → how efficiently they progressed
-                    - codeQuality → structure, readability, correctness
-                    - correctness → final correctness of solution
-
-                    ---
-
-                    IMPORTANT RULES:
-
-                    - Be strict like FAANG interviewer
-                    - Be honest, no sugarcoating
-                    - No explanations outside JSON
-                    - Output MUST be valid JSON only
-
-                    ---
-
-                    OUTPUT FORMAT:
-
-                    {
-                        "verdict": "STRONG_HIRE | HIRE | BORDERLINE | NO_HIRE",
-                        "summary": "2-4 line concise evaluation of the candidate's performance",
-                        "scores": {
-                            "problemSolving": 1-10,
-                            "communication": 1-10,
-                            "speed": 1-10,
-                            "codeQuality": 1-10,
-                            "correctness": 1-10
-                        }
-                    }
-                    `;
-
-                const feedbackDecisionRaw = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
-                    messages: [
-                        {
-                            role: "system",
-                            content: feedbackPrompt
-                        },
-                        {
-                            role: "user",
-                            content: `
-                                Give Feedback
-                            `
-                        }
-                    ]
-                });
-
-                const feedBackRaw = feedbackDecisionRaw.choices[0].message.content.trim()
-                let feedback
-
-                try {
-                    feedback = JSON.parse(feedBackRaw)
-                } catch (error) {
-                    console.log(error)
-                    feedback = {
-                        verdict: "BORDERLINE",
-                        summary: "This is a generic response due to ai failed",
-                        scores: {
-                            problemSolving: 5,
-                            communication: 5,
-                            speed: 5,
-                            codeQuality: 5,
-                            correctness: 5
-                        }
-                    }
-                }
-
-                await dsaFeedBack.findOneAndUpdate(
-                    {
-                        interviewId,
-                        userId,
-                        questionId
-                    },
-                    {
-                        $set: {
-                            verdict: feedback.verdict,
-                            summary: feedback.summary,
-                            scores: feedback.scores
-                        },
-                        $setOnInsert: {
-                            interviewId,
-                            userId,
-                            questionId
-                        }
-                    },
-                    {
-                        upsert: true
-                    }
-                )
-            }
+            // if (output.generateFeedback) {
+            await interviewQueue.add("rateForDSA", {
+                userId,
+                interviewId,
+                questionId
+            })
+            // }
 
         }
         else if (job.name === "nextDecisionForDSA") {
@@ -3602,6 +3457,160 @@ const interviewWorker = new Worker("interview", async (job) => {
                 interviewId,
                 questionId
             })
+
+        }
+        else if (job.name === "rateForDSA") {
+            const { userId, interviewId, questionId } = job.data;
+
+            const result = await validateInterviewQuestionContext({
+                userId,
+                interviewId,
+                questionId,
+                QuestionModel: dsa,
+                interviewStatus: "started",
+                interviewQuestionPath: "dsa"
+            });
+
+            if (!result.ok) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: result.message
+                });
+                return;
+            }
+
+            const { user, interview, question } = result;
+
+            const prevSubmission = await Submission.findOne({
+                interviewId,
+                userId,
+                questionId,
+                questionType: "DSA",
+                difficulty: question.difficulty
+            }).sort({ attemptNumber: -1 })
+
+            const prevMessages = await dsaChat.find({
+                interviewId,
+                userId,
+                questionId
+            }).sort({ createdAt: -1 }).limit(10).lean();
+
+            prevMessages.reverse();
+
+            const chatContext = prevMessages.map((m) => `${m.sentBy}:${m.message}`).join("\n");
+
+
+            const lastUser = prevMessages
+                .filter(m => m.sentBy === "user")
+                .slice(-1)[0]?.message;
+
+            const prompt = `
+                You are an expert DSA interviewer.
+
+                Evaluate the candidate's CURRENT progress.
+
+                Question:
+                ${question.title}
+
+                Description:
+                ${question.description}
+
+                Difficulty:
+                ${question.difficulty}
+
+                Expected Solution:
+                ${question.sampleSolution?.answer ?? ""}
+
+                Expected Key Points:
+                ${question.sampleSolution?.keyPoints?.join("\n") ?? ""}
+
+                Previous Conversation:
+                ${chatContext}
+
+                Latest Candidate Message:
+                ${lastUser}
+
+                Current Score:
+                ${prevSubmission?.totalPoint ?? 5}/10
+
+                Return ONLY valid JSON.
+
+                {
+                    "verdict":"STRONG_HIRE | HIRE | BORDERLINE | NO_HIRE",
+                    "summary":"short overall summary",
+                    "scores":{
+                        "problemSolving":1-10,
+                        "communication":1-10,
+                        "speed":1-10,
+                        "codeQuality":1-10,
+                        "correctness":1-10
+                    }
+                }
+                `;
+
+            const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
+            const code = await redis.get(redisKeyForDataBucket)
+
+            const redisDSACorrect = `dsa-correct-key-for-user-${interviewId}:${userId}:${questionId}`
+
+            const allCorrect = await redis.get(redisDSACorrect)
+
+            const response = await openai.chat.completions.create({
+                model: "nvidia/nemotron-3-super-120b-a12b",
+                messages: [
+                    {
+                        role: "system",
+                        content: prompt
+                    },
+                    {
+                        role: "user",
+                        content: ` User latest code: ${code}
+                            ${allCorrect === "true" ? `Code passed test cases` : `Code didnt pass test case`}`
+                    }
+                ]
+            });
+
+            let parsed;
+
+            try {
+                parsed = JSON.parse(response.choices[0].message.content.trim());
+            } catch (err) {
+                console.log(err);
+                return;
+            }
+
+
+            if (parsed) {
+
+
+                const totalScore =
+                    (
+                        parsed.scores.problemSolving +
+                        parsed.scores.communication +
+                        parsed.scores.speed +
+                        parsed.scores.codeQuality +
+                        parsed.scores.correctness
+                    ) / 5;
+
+
+
+
+                await dsaFeedBack.findOneAndUpdate(
+                    {
+                        interviewId,
+                        userId,
+                        questionId
+                    },
+                    {
+                        verdict: parsed.verdict,
+                        summary: parsed.summary,
+                        scores: parsed.scores
+                    },
+                    {
+                        upsert: true,
+                        new: true
+                    }
+                );
+            }
 
         }
         else if (job.name === "generateFeedbackForTheInterView") {
