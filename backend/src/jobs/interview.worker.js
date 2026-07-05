@@ -2337,11 +2337,13 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return
             }
 
+            if (interview.questions.dsa.length > 0) {
+                await interviewQueue.add("finalDSAScan", {
+                    interviewId,
+                    userId
+                })
+            }
 
-            // await interviewQueue.add("finalDSAScan", {
-            //     interviewId,
-            //     userId
-            // })
 
 
 
@@ -2789,7 +2791,136 @@ const interviewWorker = new Worker("interview", async (job) => {
             }
         }
         else if (job.name === "finalDSAScan") {
-            //to - do cuz neeed whole code scan and quality
+            const { interviewId, userId } = job.data;
+
+            const user = await User.findById(userId);
+
+            if (!user || user.isDisabled) {
+                await emitSocketEvent(userId.toString(), "error", {
+                    message: "User not found or is disabled"
+                });
+                return;
+            }
+
+            const interview = await Interview.findById(interviewId);
+
+            if (
+                !interview ||
+                interview.status !== "finished" ||
+                interview.userId.toString() !== user._id.toString()
+            ) {
+                console.log("error in finalDSAScan status error");
+                return;
+            }
+
+            const questionIds = interview.questions.dsa;
+
+            const questions = await dsa.find({
+                _id: { $in: questionIds }
+            }).lean();
+
+            for (const question of questions) {
+
+                const chats = await dsaChat.find({
+                    interviewId,
+                    userId,
+                    questionId: question._id
+                })
+                    .sort({ createdAt: 1 })
+                    .lean();
+
+                const chatContext = chats
+                    .map(m => `${m.sentBy}:${m.message}`)
+                    .join("\n");
+
+                const redisKeyForDataBucket = `dsa-data-bucket-for-${interviewId}:${userId}:${question._id}`;
+                const code = await redis.get(redisKeyForDataBucket);
+
+                const redisDSACorrect = `dsa-correct-key-for-user-${interviewId}:${userId}:${question._id}`;
+                const allCorrect = await redis.get(redisDSACorrect);
+
+                const prompt = `
+                    You are an expert DSA interviewer.
+
+                    This interview has now finished.
+
+                    Evaluate the candidate's OVERALL performance using the COMPLETE conversation, final code and whether it passed the test cases.
+
+                    Question:
+                    ${question.title}
+
+                    Description:
+                    ${question.description}
+
+                    Difficulty:
+                    ${question.difficulty}
+
+                    Expected Solution:
+                    ${question.sampleSolution?.answer ?? ""}
+
+                    Expected Key Points:
+                    ${question.sampleSolution?.keyPoints?.join("\n") ?? ""}
+
+                    Entire Conversation:
+                    ${chatContext}
+
+                    Final Code:
+                    ${code ?? "No code submitted"}
+
+                    Test Result:
+                    ${allCorrect === "true" ? "Passed all test cases" : "Did not pass all test cases"}
+
+                    Return ONLY valid JSON.
+
+                    {
+                        "verdict":"STRONG_HIRE | HIRE | BORDERLINE | NO_HIRE",
+                        "summary":"short overall summary",
+                        "scores":{
+                            "problemSolving":1-10,
+                            "communication":1-10,
+                            "speed":1-10,
+                            "codeQuality":1-10,
+                            "correctness":1-10
+                        }
+                    }
+                    `;
+
+                const response = await openai.chat.completions.create({
+                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    messages: [
+                        {
+                            role: "system",
+                            content: prompt
+                        }
+                    ]
+                });
+
+                let parsed;
+
+                try {
+                    parsed = JSON.parse(response.choices[0].message.content.trim());
+                } catch (err) {
+                    console.log(err);
+                    continue;
+                }
+
+                await dsaFeedBack.findOneAndUpdate(
+                    {
+                        interviewId,
+                        userId,
+                        questionId: question._id
+                    },
+                    {
+                        verdict: parsed.verdict,
+                        summary: parsed.summary,
+                        scores: parsed.scores
+                    },
+                    {
+                        upsert: true,
+                        new: true
+                    }
+                );
+            }
         }
         else if (job.name === "startAiListeningForDSA") {
             const { interviewId, userId, questionId } = job.data;
