@@ -37,6 +37,7 @@ export default function InterviewDetailsPage() {
   const {
     interview,
     loading,
+    interviewEnded,
     getInterview,
     cancelInterview,
   } = useInterviewStore();
@@ -160,30 +161,43 @@ export default function InterviewDetailsPage() {
           </div>
 
           <div className="mt-8 flex justify-end gap-3">
+            {interviewEnded ? (
+              <>
+                <Button
+                  onClick={() =>
+                    router.push(`/client/interviews/feedback/${interview._id}`)
+                  }
+                  className="rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold px-6"
+                >
+                  View Feedback
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleCancel}
+                  className="border-red-900 bg-transparent text-red-400 hover:bg-red-950"
+                >
+                  Cancel Interview
+                </Button>
 
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              className="border-red-900 bg-transparent text-red-400 hover:bg-red-950"
-            >
-              Cancel Interview
-            </Button>
-
-            <Button
-              onClick={handleStartInterview}
-              disabled={startingInterview}
-              className="rounded-xl bg-white text-black hover:bg-zinc-200 font-semibold px-6 py-2 shadow-lg shadow-white/10 transition-all cursor-pointer"
-            >
-              {startingInterview ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                "Start Interview"
-              )}
-            </Button>
-
+                <Button
+                  onClick={handleStartInterview}
+                  disabled={startingInterview}
+                  className="rounded-xl bg-white text-black hover:bg-zinc-200 font-semibold px-6 py-2 shadow-lg shadow-white/10 transition-all cursor-pointer"
+                >
+                  {startingInterview ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Starting...
+                    </>
+                  ) : (
+                    "Start Interview"
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

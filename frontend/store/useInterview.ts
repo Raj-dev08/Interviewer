@@ -11,12 +11,14 @@ export type Interview = {
   type: "case" | "dsa-only" | "system_design" | "mixed";
   status: string;
   duration: number;
+  questions: any;
 };
 
 type InterviewStore = {
   interview: Interview | null;
   interviews: Interview[];
   loading: boolean;
+  interviewEnded: boolean;
 
   createInterview: (type: Interview["type"]) => Promise<boolean>;
   getInterview: (id: string) => Promise<void>;
@@ -28,10 +30,11 @@ type InterviewStore = {
   subscribetoInterviews: () => void;
 };
 
-export const useInterviewStore = create<InterviewStore>((set,get) => ({
+export const useInterviewStore = create<InterviewStore>((set, get) => ({
   interview: null,
   interviews: [],
   loading: false,
+  interviewEnded: false,
 
   createInterview: async (type) => {
     set({ loading: true });
@@ -67,11 +70,11 @@ export const useInterviewStore = create<InterviewStore>((set,get) => ({
             `/interview/get/${id}`
           );
 
-          return res.data.interview;
+          return res.data;
         },
       });
 
-      set({ interview: data });
+      set({ interview: data.interview, interviewEnded: data.interviewEnded });
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message ||
