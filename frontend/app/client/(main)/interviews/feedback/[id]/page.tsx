@@ -89,7 +89,8 @@ export default function FeedbackPage() {
     const loading = feedbackLoading || interviewLoading;
     const hasNoData = dsaFeedback.length === 0 && !caseFeedback && !sysdesFeedback;
     const roundLabel = interview ? roundTitles[interview.type] || interview.type : "";
-    const totalQuestions = interview?.questions?.length ?? null;
+    const totalQuestions = interview?.questions?.dsa?.length + interview?.questions?.sysDes?.length + interview?.questions?.case?.length
+
 
     const tabs: { id: TabId; label: string; icon: typeof Code2 }[] = [
         { id: "overview", label: "Overview", icon: Sparkles },
@@ -232,7 +233,7 @@ export default function FeedbackPage() {
                                             <span className="text-sm">Total Questions</span>
                                             <ListChecks className="h-4 w-4" aria-hidden="true" />
                                         </div>
-                                        <div className="text-2xl font-bold tabular-nums">{totalQuestions ?? "—"}</div>
+                                        <div className="text-2xl font-bold tabular-nums">{totalQuestions}</div>
                                     </div>
                                 </div>
 
@@ -348,8 +349,8 @@ export default function FeedbackPage() {
                                                                 <span className="text-zinc-300">Result</span>
                                                                 <span
                                                                     className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${submission.isCorrect
-                                                                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                                                                            : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                                                                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                                                                        : "border-rose-500/30 bg-rose-500/10 text-rose-300"
                                                                         }`}
                                                                 >
                                                                     {submission.isCorrect ? (

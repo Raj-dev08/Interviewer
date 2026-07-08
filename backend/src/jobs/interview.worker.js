@@ -2368,6 +2368,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const timeLockForInterview = `interview-started-for:${interviewId}`
             const userInterview = `User-current-interview:${userId}`
             const userAllInterviews = `interviewsFor:${userId}`
+            const interviewKey = `interview:${interviewId}`
 
 
 
@@ -2381,6 +2382,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             await redis.del(timeLockForInterview)
             await redis.del(userInterview)
             await redis.del(userAllInterviews)
+            await redis.del(interviewKey)
 
 
             //TO_DO : make full analysis report with ai like how he performed what can be done better where he messed up 
@@ -3059,9 +3061,17 @@ const interviewWorker = new Worker("interview", async (job) => {
             const isFinished = await redis.exists(finishKeyRedis)
 
             if (isFinished) {
-
-                await emitSocketEvent(userId.toString(), "notification", {
-                    message: "DSA TALK FOR THIS QUESTION IS DONE MOVE TO THE NEXT !"
+                const newMessage = await dsaChat.create({
+                    interviewId,
+                    userId,
+                    questionId,
+                    sentBy: "ai",
+                    message: "DSA question over move to the next one"
+                })
+                await emitSocketEvent(userId.toString(), "newMessageDSA", {
+                    newMessage,
+                    interviewId,
+                    questionId
                 })
                 return
             }
@@ -3531,13 +3541,15 @@ const interviewWorker = new Worker("interview", async (job) => {
                 return;
             }
 
+
+            const { user, interview, question } = result;
+
             if (type == 'FINISH') {
                 const finishKeyRedis = `dsa-chat-finished-for-${interviewId}:${userId}:${questionId}`
 
                 await redis.set(finishKeyRedis, "1", "NX", "EX", interview.duration * 60)
             }
 
-            const { user, interview, question } = result;
 
             const redisKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
             const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;

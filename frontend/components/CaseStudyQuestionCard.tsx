@@ -94,7 +94,7 @@ export default function CaseStudyCard({
       {/* META */}
       <div className="mt-4 flex flex-wrap gap-2">
         <span className="text-xs px-3 py-1 rounded-full bg-zinc-800">
-          {caseStudy.difficulity}
+          {caseStudy.difficulty}
         </span>
 
         <span className="text-xs px-3 py-1 rounded-full bg-zinc-800">

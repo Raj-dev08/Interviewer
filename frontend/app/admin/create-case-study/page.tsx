@@ -252,7 +252,7 @@ export default function AdminCreateCaseStudyPage() {
                 value={form.domain}
                 onChange={(e) => setForm({ ...form, domain: e.target.value })}
                 className="w-full rounded-2xl bg-zinc-950 border border-zinc-800 p-4"
-                >
+              >
                 <option value="">Select Domain</option>
                 <option value="consulting">Consulting</option>
                 <option value="finance">Finance</option>
@@ -272,7 +272,7 @@ export default function AdminCreateCaseStudyPage() {
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
                 className="w-full rounded-2xl bg-zinc-950 border border-zinc-800 p-4"
-                >
+              >
                 <option value="">Select Type</option>
                 <option value="market_sizing">Market Sizing</option>
                 <option value="profitability">Profitability</option>
@@ -316,15 +316,15 @@ export default function AdminCreateCaseStudyPage() {
           <div className="flex flex-col gap-1">
             <p className="mx-2 text-zinc-400 text-sm">Answer format</p>
             <select
-                value={form.answerFormat}
-                onChange={(e) => setForm({ ...form, answerFormat: e.target.value })}
-                className="rounded-2xl bg-zinc-950 border border-zinc-800 p-4"
+              value={form.answerFormat}
+              onChange={(e) => setForm({ ...form, answerFormat: e.target.value })}
+              className="rounded-2xl bg-zinc-950 border border-zinc-800 p-4"
             >
-            <option value="structured">Structured</option>
-            <option value="freeform">Freeform</option>
-            <option value="stepwise">Stepwise</option>
+              <option value="structured">Structured</option>
+              <option value="freeform">Freeform</option>
+              <option value="stepwise">Stepwise</option>
             </select>
-        </div>
+          </div>
         </div>
 
         {/* CONTEXT & GOAL */}
@@ -459,7 +459,7 @@ export default function AdminCreateCaseStudyPage() {
 
             {form.sampleSolution.keyPoints.map((kp: string, i: number) => (
               <div key={i} className="relative flex items-center gap-2 mb-2">
-                <span className="text-zinc-500 text-sm w-5 shrink-0">•</span>
+                <span className="text-zinc-500 text-sm w-5 shrink-0">{i + 1}.</span>
                 <input
                   placeholder={`Key point ${i + 1}`}
                   value={kp}
@@ -589,7 +589,7 @@ export default function AdminCreateCaseStudyPage() {
           />
         </div>
 
-        
+
       </div>
     </div>
   );

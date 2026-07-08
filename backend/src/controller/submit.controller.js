@@ -235,6 +235,23 @@ export const runDSAQuestion = async (req, res, next) => {
             });
         }
 
+        if (response.data.memoryUsed > dsaQuestion.maxMemory * 1024) {
+            return res.status(200).json({
+                passed: false,
+                status: "Memory Limit Exceeded",
+                stderr: "Memory Limit Exceeded",
+            });
+        }
+
+
+        if (response.data.executionTime > dsaQuestion.maxTime) {
+            return res.status(200).json({
+                passed: false,
+                status: "Time Limit Exceeded",
+                stderr: "Time Limit Exceeded",
+            });
+        }
+
         const actualOutputs = (response.data.stdout || "")
             .split("\n")
             .map(o => o.trim())
@@ -460,6 +477,24 @@ export const submitDSAQuestion = async (req, res, next) => {
                 status: response.data.status,
                 stderr: response.data.stderr,
                 submission
+            });
+        }
+
+        if (response.data.memoryUsed > dsaQuestion.maxMemory * 1024) {
+            return res.status(200).json({
+                passed: false,
+                status: "Memory Limit Exceeded",
+                stderr: "Memory Limit Exceeded",
+            });
+        }
+
+        // console.log(response.data, dsaQuestion.maxTime)
+
+        if (response.data.executionTime > dsaQuestion.maxTime) {
+            return res.status(200).json({
+                passed: false,
+                status: "Time Limit Exceeded",
+                stderr: "Time Limit Exceeded",
             });
         }
 

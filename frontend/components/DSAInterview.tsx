@@ -184,7 +184,7 @@ export default function DSASection({
         )
     }
 
-
+    console.log(runResult)
     return (
         <div className="h-full no-scrollbar flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
             {/* LEFT PANEL */}
@@ -523,19 +523,13 @@ export default function DSASection({
                         <div className="text-zinc-500 text-sm">
                             Run the code to view results.
                         </div>
-                    ) : runResult.status ? (
+                    ) : runResult.stderr ? (
                         // Compile / runtime error from the judge itself
                         <div className="space-y-3">
                             <div className="flex items-center gap-2 text-red-400 font-semibold text-sm sm:text-base">
                                 <XCircle size={18} />
-                                {runResult.status.description}
+                                {runResult.stderr}
                             </div>
-
-                            {runResult.stderr && (
-                                <pre className="text-red-300 whitespace-pre-wrap text-xs sm:text-sm bg-red-500/5 border border-red-500/20 rounded-xl p-3 overflow-x-auto">
-                                    {runResult.stderr}
-                                </pre>
-                            )}
                         </div>
                     ) : !runResult.passed ? (
                         <div className="space-y-4">
@@ -725,15 +719,22 @@ export default function DSASection({
                                 const total =
                                     submissionResult.results?.length || 0;
 
+                                // console.log(submissionResult)
+
                                 return (
                                     <>
                                         <div
                                             className={`rounded-xl border p-4 flex items-center gap-2 font-semibold ${submissionResult.passed
-                                                    ? "bg-green-500/10 border-green-500/20 text-green-400"
-                                                    : "bg-red-500/10 border-red-500/20 text-red-400"
+                                                ? "bg-green-500/10 border-green-500/20 text-green-400"
+                                                : "bg-red-500/10 border-red-500/20 text-red-400"
                                                 }`}
                                         >
-                                            {submissionResult.passed ? (
+                                            {submissionResult.stderr ? (
+                                                <>
+                                                    <XCircle size={20} />
+                                                    {submissionResult.stderr}
+                                                </>
+                                            ) : submissionResult.passed ? (
                                                 <>
                                                     <CheckCircle2 size={20} />
                                                     Accepted
