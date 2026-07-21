@@ -405,11 +405,31 @@ export default function FeedbackPage() {
                                 id="panel-sysdes"
                                 role="tabpanel"
                                 aria-labelledby="tab-sysdes"
-                                className="grid grid-cols-1 gap-6 md:grid-cols-3"
+                                className="grid grid-cols-1 gap-5 lg:grid-cols-3"
                             >
-                                <FeedbackColumn title="Strengths" items={sysdesFeedback.strength} icon={CheckCircle2} tone="emerald" />
-                                <FeedbackColumn title="Areas to improve" items={sysdesFeedback.weakness} icon={AlertCircle} tone="rose" />
-                                <FeedbackColumn title="Suggestions" items={sysdesFeedback.improvement} icon={Lightbulb} tone="indigo" />
+                                <FeedbackColumn
+                                    title="Strengths"
+                                    description="What you did well"
+                                    items={sysdesFeedback.strength}
+                                    icon={CheckCircle2}
+                                    tone="green"
+                                />
+
+                                <FeedbackColumn
+                                    title="Areas to improve"
+                                    description="Where you can perform better"
+                                    items={sysdesFeedback.weakness}
+                                    icon={AlertCircle}
+                                    tone="red"
+                                />
+
+                                <FeedbackColumn
+                                    title="Suggestions"
+                                    description="Actionable ways to improve"
+                                    items={sysdesFeedback.improvement}
+                                    icon={Lightbulb}
+                                    tone="blue"
+                                />
                             </div>
                         )}
 
@@ -419,11 +439,31 @@ export default function FeedbackPage() {
                                 id="panel-case"
                                 role="tabpanel"
                                 aria-labelledby="tab-case"
-                                className="grid grid-cols-1 gap-6 md:grid-cols-3"
+                                className="grid grid-cols-1 gap-5 lg:grid-cols-3"
                             >
-                                <FeedbackColumn title="Strengths" items={caseFeedback.strength} icon={CheckCircle2} tone="emerald" />
-                                <FeedbackColumn title="Areas to improve" items={caseFeedback.weakness} icon={AlertCircle} tone="rose" />
-                                <FeedbackColumn title="Suggestions" items={caseFeedback.improvement} icon={Lightbulb} tone="indigo" />
+                                <FeedbackColumn
+                                    title="Strengths"
+                                    description="What you did well"
+                                    items={caseFeedback.strength}
+                                    icon={CheckCircle2}
+                                    tone="green"
+                                />
+
+                                <FeedbackColumn
+                                    title="Areas to improve"
+                                    description="Where you can perform better"
+                                    items={caseFeedback.weakness}
+                                    icon={AlertCircle}
+                                    tone="red"
+                                />
+
+                                <FeedbackColumn
+                                    title="Suggestions"
+                                    description="Actionable ways to improve"
+                                    items={caseFeedback.improvement}
+                                    icon={Lightbulb}
+                                    tone="blue"
+                                />
                             </div>
                         )}
                     </div>
@@ -467,29 +507,121 @@ function SectionLink({
 
 function FeedbackColumn({
     title,
+    description,
     items,
     icon: Icon,
     tone,
 }: {
     title: string;
+    description: string;
     items: string[];
     icon: typeof CheckCircle2;
-    tone: "emerald" | "rose" | "indigo";
+    tone: "green" | "red" | "blue";
 }) {
-    const toneText = { emerald: "text-emerald-400", rose: "text-rose-400", indigo: "text-indigo-300" }[tone];
+    const styles = {
+        green: {
+            wrapper: "bg-green-500/10",
+            iconBg: "bg-green-500/15",
+            icon: "text-green-400",
+            title: "text-green-400",
+            accent: "bg-green-500",
+            number: "text-green-500/60",
+            itemIcon: "text-green-400",
+            divider: "bg-green-600",
+        },
+
+        red: {
+            wrapper: "bg-red-500/10",
+            iconBg: "bg-red-500/15",
+            icon: "text-red-400",
+            title: "text-red-400",
+            accent: "bg-red-500",
+            number: "text-red-500/60",
+            itemIcon: "text-red-400",
+            divider: "bg-red-600",
+        },
+
+        blue: {
+            wrapper: "bg-blue-500/10",
+            iconBg: "bg-blue-500/15",
+            icon: "text-blue-400",
+            title: "text-blue-400",
+            accent: "bg-blue-500",
+            number: "text-blue-500/60",
+            itemIcon: "text-blue-400",
+            divider: "bg-blue-600",
+        },
+    }[tone];
 
     return (
-        <div className="rounded-2xl border border-zinc-800 p-5">
-            <h3 className="mb-4 border-b border-zinc-800 pb-3 font-semibold">{title}</h3>
-            <ul className="space-y-3">
-                {items.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5 text-sm leading-relaxed text-zinc-200">
-                        <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${toneText}`} aria-hidden="true" />
-                        <span>{item}</span>
-                    </li>
-                ))}
-                {items.length === 0 && <li className="text-sm italic text-zinc-400">Nothing recorded here yet.</li>}
-            </ul>
+        <div
+            className={`relative overflow-hidden rounded-3xl p-6 ${styles.wrapper}`}
+        >
+            {/* Top accent */}
+            <div
+                className={`absolute inset-x-0 top-0 h-1 ${styles.accent}`}
+            />
+
+            {/* Header */}
+            <div className="mb-7 flex items-center gap-4">
+                <Icon
+                    className={`h-5 w-5 ${styles.icon}`}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                />
+
+                <div>
+                    <h3 className={`text-base font-semibold ${styles.title}`}>
+                        {title}
+                    </h3>
+
+                    <p className="mt-1 text-xs text-gray-400">
+                        {description}
+                    </p>
+                </div>
+            </div>
+
+            {/* Feedback */}
+            {items.length > 0 ? (
+                <div>
+                    {items.map((item, idx) => (
+                        <div
+                            key={idx}
+                            className={`flex gap-4 py-4 ${styles.divider} mb-4 rounded-md px-2`}
+                        >
+                            {/* Number */}
+                            <span
+                                className={`pt-0.5 text-xs text-black font-bold ${styles.number}`}
+                            >
+                                ( {idx + 1} )
+                            </span>
+
+                            {/* Content */}
+                            <div className="flex flex-1 gap-3">
+
+                                <p className="text-sm font-semibold leading-6 text-black">
+                                    {item}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="py-8 text-center">
+                    <Icon
+                        className={`mx-auto mb-3 h-6 w-6 ${styles.icon}`}
+                        aria-hidden="true"
+                    />
+
+                    <p className="text-sm font-medium text-gray-300">
+                        No feedback available
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                        Nothing has been recorded here yet.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

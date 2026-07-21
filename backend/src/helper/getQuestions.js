@@ -9,8 +9,8 @@ export const getRandomQuestion = async (Model, difficulty, excludedIds, limit) =
         },
         {
             $project: {
-                _id:1,
-                duration:1
+                _id: 1,
+                duration: 1
             }
         },
         { $sample: { size: limit } }
@@ -18,18 +18,18 @@ export const getRandomQuestion = async (Model, difficulty, excludedIds, limit) =
 
 
 
-    if (questions.length < limit ) {
+    if (questions.length < limit) {
         const remainingLimit = limit - questions.length;
         const remainingQuestions = await Model.aggregate([
             {
                 $match: {
                     difficulty: difficulty
-                }  
+                }
             },
             {
                 $project: {
-                    _id:1,
-                    duration:1
+                    _id: 1,
+                    duration: 1
                 }
             },
             { $sample: { size: remainingLimit } }
@@ -38,7 +38,7 @@ export const getRandomQuestion = async (Model, difficulty, excludedIds, limit) =
         questions = [...questions, ...remainingQuestions]
     }
 
-    const totalDuration = questions.reduce((sum,e)=>sum+e.duration,0)
+    const totalDuration = questions.reduce((sum, e) => sum + e.duration, 0)
 
     return { ids: questions.map(q => q._id), totalDuration };
 }

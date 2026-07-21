@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { axiosInstance } from "@/lib/api";
 import toast from "react-hot-toast";
-import {io} from "socket.io-client"
+import { io } from "socket.io-client"
 
-const BASE_URL =  process.env.NODE_ENV === "development" ? "http://localhost:5000" : process.env.NEXT_PUBLIC_API_URL!;
+const BASE_URL = process.env.NODE_ENV === "development" ? "http://localhost:8000" : process.env.NEXT_PUBLIC_API_URL!;
 
 type User = {
   _id: string;
@@ -59,7 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: false,
   isCheckingAuth: true,
-  socket:null,
+  socket: null,
 
   sendOtp: async (data) => {
     set({ loading: true });
@@ -70,8 +70,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
-          error?.message ||
-          "Something went wrong"
+        error?.message ||
+        "Something went wrong"
       );
       return false;
     } finally {
@@ -93,8 +93,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
-          error?.message ||
-          "Something went wrong"
+        error?.message ||
+        "Something went wrong"
       );
       return false;
     } finally {
@@ -116,8 +116,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
-          error?.message ||
-          "Something went wrong"
+        error?.message ||
+        "Something went wrong"
       );
       return false;
     } finally {
@@ -138,8 +138,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       toast.error(
         error?.response?.data?.message ||
-          error?.message ||
-          "Something went wrong"
+        error?.message ||
+        "Something went wrong"
       );
       return false;
     } finally {
@@ -160,7 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: res.data });
       get().connectSocket();
       return res.data;
-    } catch  {
+    } catch {
       set({ user: null });
       return null;
     } finally {
@@ -179,7 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   //     return false;
   //   }
   // },
- //Web doesnt have expo token so commented out
+  //Web doesnt have expo token so commented out
   changePassword: async (data) => {
     set({ loading: true });
     try {
