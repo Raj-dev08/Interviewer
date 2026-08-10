@@ -96,7 +96,7 @@ export const getAllInterviews = async (req, res, next) => {
         }
 
 
-        const interviews = await Interview.find({ userId: user._id }).select("type status durations")
+        const interviews = await Interview.find({ userId: user._id }).select("type status duration")
 
         await redis.set(redisKey, JSON.stringify(interviews), "EX", 60 * 60)
 
