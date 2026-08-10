@@ -259,9 +259,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         userId: user._id,
       },
     });
-    socket.connect();
-
-    set({ socket: socket });
+    console.log(socket)
+    set({ socket });
   },
   disconnectSocket: () => {
     if (get().socket?.connected) get().socket.disconnect();
