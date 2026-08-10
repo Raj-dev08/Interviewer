@@ -24,7 +24,7 @@ export type Notification = {
 
 type NotificationStore = {
   notifications: Notification[];
-  unreadCount: number;    
+  unreadCount: number;
   loading: boolean;
 
   fetchNotifications: () => Promise<void>;
@@ -54,16 +54,16 @@ export const useNotificationStore = create<NotificationStore>(
         const res = await axiosInstance.get(
           "/notification/notifications"
         );
-        
-        
-        console.log(res)
+
+
+        // console.log(res)
         set({
           notifications: res?.data?.notifications || [],
         });
       } catch (err: any) {
         toast.error(
           err?.response?.data?.message ||
-            "Failed to fetch notifications"
+          "Failed to fetch notifications"
         );
       } finally {
         set({ loading: false });
@@ -72,20 +72,20 @@ export const useNotificationStore = create<NotificationStore>(
 
 
     fetchUnreadCount: async () => {
-        try {
-            const res = await axiosInstance.get(
-                "/notification/unread-notification/count"
-            );
+      try {
+        const res = await axiosInstance.get(
+          "/notification/unread-notification/count"
+        );
 
-            set({
-            unreadCount: res.data.unreadMessageCount ?? 0,
-            });
-        } catch (err: any) {
-            toast.error(
-            err?.response?.data?.message ||
-            "Failed to fetch unread count"
-            );
-        }
+        set({
+          unreadCount: res.data.unreadMessageCount ?? 0,
+        });
+      } catch (err: any) {
+        toast.error(
+          err?.response?.data?.message ||
+          "Failed to fetch unread count"
+        );
+      }
     },
 
     // ---------------- REMOVE ----------------
@@ -154,14 +154,14 @@ export const useNotificationStore = create<NotificationStore>(
     },
 
     subscribetoNotifications: () => {
-      const  { socket } = useAuthStore.getState();
-      
+      const { socket } = useAuthStore.getState();
+
       if (!socket) return;
 
       socket.off("notifications_created");
 
 
-      socket.on("notifications_created", (data:any) =>  {
+      socket.on("notifications_created", (data: any) => {
         toast.success("New notification");
         get().addNotification(data.notification);
       });

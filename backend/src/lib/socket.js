@@ -7,6 +7,7 @@ let io;
 export const initSocket = async (server) => {
 
   io = new Server(server, {
+    transports: ["websocket"],
     cors: {
       origin: [process.env.CLIENT_URL],
       credentials: true
@@ -21,14 +22,14 @@ export const initSocket = async (server) => {
 
   await eventSub.subscribe("socket-events", (message) => {
     try {
-        const { room, event, data } = JSON.parse(message);
-        io.to(room).emit(event, data);
+      const { room, event, data } = JSON.parse(message);
+      io.to(room).emit(event, data);
     } catch (err) {
-        console.error("Socket event parse error", err);
+      console.error("Socket event parse error", err);
     }
   });
 
-  
+
   io.on("connection", (socket) => {
 
     const userId = socket.handshake.query.userId;
@@ -38,11 +39,11 @@ export const initSocket = async (server) => {
       console.log("User connected:", userId);
     }
 
-    socket.on("codeChange", async(data) => {
+    socket.on("codeChange", async (data) => {
       try {
         const { code, interviewId, userId, questionId } = data
 
-        const redisKeyForInit = `timestamp-to-exec-for-${interviewId}:${userId}:${questionId}`   
+        const redisKeyForInit = `timestamp-to-exec-for-${interviewId}:${userId}:${questionId}`
         const redisKey = `dsa-data-bucket-for-${interviewId}:${userId}:${questionId}`
         const historyKey = `dsa-code-history-for-${interviewId}:${userId}:${questionId}`;
 
@@ -64,10 +65,10 @@ export const initSocket = async (server) => {
         await redis.ltrim(historyKey, -50, -1);
 
 
-        const execute = await redis.set(redisKeyForInit,"1","NX","EX", 5 * 60 ) //5 mins for this
-        
-        if (!execute){
-          await interviewQueue.add("decideNextDecision",{
+        const execute = await redis.set(redisKeyForInit, "1", "NX", "EX", 5 * 60) //5 mins for this
+
+        if (!execute) {
+          await interviewQueue.add("decideNextDecision", {
             interviewId,
             userId,
             questionId
