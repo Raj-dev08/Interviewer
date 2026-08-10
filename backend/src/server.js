@@ -56,11 +56,11 @@ app.use("/api/dsa", dsaRoutes);
 app.use("/api/sysdes", protectRoute, sysdesRoutes);
 app.use("/api/case", protectRoute, caseRoutes);
 app.use("/api/interview", protectRoute, interviewRoutes);
-app.use("/api/notification",protectRoute,notificationRoutes)
-app.use("/api/interviewflow",protectRoute,interviewFlowRoutes)
-app.use("/api/submission",protectRoute,submissionRoutes)
-app.use("/api/dsa-chat",protectRoute,dsaChatRoutes)
-app.use("/api/feedback",protectRoute,feedbackRoutes)
+app.use("/api/notification", protectRoute, notificationRoutes)
+app.use("/api/interviewflow", protectRoute, interviewFlowRoutes)
+app.use("/api/submission", protectRoute, submissionRoutes)
+app.use("/api/dsa-chat", protectRoute, dsaChatRoutes)
+app.use("/api/feedback", protectRoute, feedbackRoutes)
 
 
 app.get("/api/health", (req, res) => {
@@ -80,9 +80,18 @@ app.head("/health", (req, res) => {
 
 app.use(errorHandler)
 
+const startServer = async () => {
+  try {
+    await connectDB();
+    await initSocket(server);
 
-server.listen(PORT, "0.0.0.0", async () => {
-  console.log("server is running on PORT:" + PORT);
-  await initSocket(server);
-  await connectDB();
-});
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
+};
+
+startServer();
