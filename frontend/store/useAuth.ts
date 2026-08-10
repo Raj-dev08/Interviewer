@@ -3,7 +3,12 @@ import { axiosInstance } from "@/lib/api";
 import toast from "react-hot-toast";
 import { io } from "socket.io-client"
 
-const BASE_URL = process.env.NODE_ENV === "development" ? "http://localhost:8000" : process.env.NEXT_PUBLIC_API_URL!;
+const BASE_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:8000"
+    : process.env.NEXT_PUBLIC_API_URL!;
+
+const SOCKET_URL = BASE_URL.split("/api")[0];
 
 type User = {
   _id: string;
@@ -252,7 +257,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user || get().socket?.connected) return;
 
-    const socket = io(BASE_URL, {
+    const socket = io(SOCKET_URL, {
       transports: ["websocket"],
       withCredentials: true,
       query: {
