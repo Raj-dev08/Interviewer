@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently \"nodemon src/server.js\" \"nodemon src/jobs/interview.worker.js\"",
     "start": "node src/server.js & node src/jobs/interview.worker.js",
+    "test": "node --test",
     "db-init": "drizzle-kit push"
   },
   "keywords": [],
@@ -26,7 +27,7 @@
     "express": "^4.21.0",
     "ioredis": "^5.6.1",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.13.2",
+    "mongoose": "^8.24.3",
     "openai": "^6.29.0",
     "pg": "^8.20.0",
     "redis": "^5.11.0",
