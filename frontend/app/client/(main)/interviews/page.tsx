@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { Loader2, Plus, Trash2  } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useInterviewStore } from "@/store/useInterview";
 import { Button } from "@/components/ui/button";
 
@@ -90,13 +90,12 @@ export default function InterviewsPage() {
                     </div>
 
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        interview.status === "scheduled"
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${interview.status === "scheduled"
                           ? "bg-green-500/10 text-green-400"
                           : interview.status === "cancelled"
-                          ? "bg-red-500/10 text-red-400"
-                          : "bg-zinc-700 text-zinc-300"
-                      }`}
+                            ? "bg-red-500/10 text-red-400"
+                            : "bg-zinc-700 text-zinc-300"
+                        }`}
                     >
                       {interview.status}
                     </span>

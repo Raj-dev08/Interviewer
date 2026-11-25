@@ -34,6 +34,7 @@ const openai = new OpenAI({
     baseURL: process.env.AI_URL
 });
 
+const AI_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 
 
 
@@ -520,7 +521,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             `
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -758,7 +759,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -857,7 +858,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const judgeRes = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1017,7 +1018,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1175,7 +1176,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             if (count >= 3 || !isPreviousDelta) {
 
                 const decision = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    model: AI_MODEL,
                     messages: [
                         {
                             role: "system",
@@ -1295,7 +1296,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const feedbackdecision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1420,7 +1421,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1681,7 +1682,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1761,7 +1762,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const judgeRes = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -1905,7 +1906,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             });
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -2102,7 +2103,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             if (count >= 3 || !isPreviousDelta) {
 
                 const decision = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    model: AI_MODEL,
                     messages: [
                         {
                             role: "system",
@@ -2264,7 +2265,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const feedbackdecision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -2546,7 +2547,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             for (const item of finalPrompt) {
                 const decision = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    model: AI_MODEL,
                     messages: [
                         {
                             role: "system",
@@ -2748,7 +2749,7 @@ const interviewWorker = new Worker("interview", async (job) => {
 
             for (const item of finalPrompt) {
                 const decision = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    model: AI_MODEL,
                     messages: [
                         {
                             role: "system",
@@ -2888,7 +2889,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                     `;
 
                 const response = await openai.chat.completions.create({
-                    model: "nvidia/nemotron-3-super-120b-a12b",
+                    model: AI_MODEL,
                     messages: [
                         {
                             role: "system",
@@ -3021,7 +3022,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -3319,7 +3320,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -3479,7 +3480,7 @@ const interviewWorker = new Worker("interview", async (job) => {
                 `;
 
             const decisionRaw = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -3569,7 +3570,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const systemPrompt = buildDSANextStepPrompt({ type, question, mostRecentCode: code, history, chatContext })
 
             const decision = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
@@ -3698,7 +3699,7 @@ const interviewWorker = new Worker("interview", async (job) => {
             const allCorrect = await redis.get(redisDSACorrect)
 
             const response = await openai.chat.completions.create({
-                model: "nvidia/nemotron-3-super-120b-a12b",
+                model: AI_MODEL,
                 messages: [
                     {
                         role: "system",
