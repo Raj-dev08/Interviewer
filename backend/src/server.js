@@ -21,7 +21,7 @@ import interviewFlowRoutes from "./routes/interviewflow.routes.js"
 import submissionRoutes from "./routes/submission.routes.js"
 import dsaChatRoutes from "./routes/dsachat.routes.js"
 import feedbackRoutes from './routes/feedback.routes.js'
-
+import automationRoutes from "./routes/automation.routes.js"
 
 
 
@@ -61,7 +61,7 @@ app.use("/api/interviewflow", protectRoute, interviewFlowRoutes)
 app.use("/api/submission", protectRoute, submissionRoutes)
 app.use("/api/dsa-chat", protectRoute, dsaChatRoutes)
 app.use("/api/feedback", protectRoute, feedbackRoutes)
-
+app.use("/api/automation", protectRoute, automationRoutes)
 
 app.get("/api/health", (req, res) => {
   return res.status(200).json({ message: "OK" })

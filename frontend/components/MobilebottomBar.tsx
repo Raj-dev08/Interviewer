@@ -13,7 +13,8 @@ import {
   CreditCard,
   Users,
   Timer,
-  PlayCircle
+  PlayCircle,
+  Monitor
 } from "lucide-react";
 
 import { useAuthStore } from "@/store/useAuth";
@@ -140,6 +141,13 @@ export default function MobileBottomBar() {
               <BottomItem
                 icon={<User size={20} />}
                 active={pathname.startsWith("/client/profile")}
+              />
+            </Link>
+
+            <Link href="/client/browser-automation">
+              <BottomItem
+                icon={<Monitor size={20} />}
+                active={pathname.startsWith("/client/browser-automation")}
               />
             </Link>
 

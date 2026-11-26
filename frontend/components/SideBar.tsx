@@ -12,6 +12,7 @@ import {
   Logs,
   Timer,
   PlayCircle,
+  Monitor,
 } from "lucide-react";
 
 import { useInterviewFlowStore } from "@/store/useInterviewFlow";
@@ -112,6 +113,14 @@ export default function DashboardSidebar() {
                 icon={<User size={18} />}
                 label="Profile"
                 active={pathname.startsWith("/client/profile")}
+              />
+            </Link>
+
+            <Link href="/client/browser-automation">
+              <SidebarItem
+                icon={<Monitor size={18} />}
+                label="Browser Automation"
+                active={pathname.startsWith("/client/browser-automation")}
               />
             </Link>
 
